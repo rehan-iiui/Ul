@@ -1,29 +1,40 @@
 /* =========================================================
    ULTIMATE BRAIN LAB
-   Corrected QA Version
+   STABLE BUTTON FIX
    ========================================================= */
+
+document.addEventListener("DOMContentLoaded", () => {
 
 "use strict";
 
 /* =========================================================
-   GLOBAL STATE
+   ELEMENTS
    ========================================================= */
 
-const gameArea = document.getElementById("gameArea");
 const modal = document.getElementById("gameModal");
 const modalTitle = document.getElementById("modalTitle");
-const closeModalBtn = document.getElementById("closeModal");
+const gameArea = document.getElementById("gameArea");
+const closeModal = document.getElementById("closeModal");
 
-let activeTimers = [];
-let activeIntervals = [];
-let activeCleanup = null;
+if (!modal || !modalTitle || !gameArea) {
+    console.error("Ultimate Brain Lab: Required HTML elements missing.");
+    return;
+}
+
+/* =========================================================
+   STATE
+   ========================================================= */
+
+let timers = [];
+let intervals = [];
+let cleanupFunction = null;
 
 let stats = {
     games: 0,
     wins: 0,
     bestReaction: null,
-    bestTyping: null,
-    bestMemory: 0
+    bestMemory: 0,
+    bestTyping: null
 };
 
 /* =========================================================
@@ -35,17 +46,17 @@ function loadStats() {
         const saved = localStorage.getItem("ultimateBrainLabStats");
 
         if (saved) {
-            const parsed = JSON.parse(saved);
+            const data = JSON.parse(saved);
 
-            if (parsed && typeof parsed === "object") {
+            if (data && typeof data === "object") {
                 stats = {
                     ...stats,
-                    ...parsed
+                    ...data
                 };
             }
         }
     } catch (error) {
-        console.warn("Could not load saved stats.", error);
+        console.warn("Stats could not be loaded.");
     }
 
     updateStats();
@@ -58,86 +69,120 @@ function saveStats() {
             JSON.stringify(stats)
         );
     } catch (error) {
-        console.warn("Could not save stats.", error);
+        console.warn("Stats could not be saved.");
     }
 }
 
 function updateStats() {
-    const gamesEl = document.getElementById("gamesPlayed");
-    const winsEl = document.getElementById("wins");
-    const reactionEl = document.getElementById("bestReaction");
-    const memoryEl = document.getElementById("bestMemory");
 
-    if (gamesEl) gamesEl.textContent = stats.games;
-    if (winsEl) winsEl.textContent = stats.wins;
+    const games =
+        document.getElementById("gamesPlayed");
 
-    if (reactionEl) {
-        reactionEl.textContent =
+    const wins =
+        document.getElementById("wins");
+
+    const reaction =
+        document.getElementById("bestReaction");
+
+    const memory =
+        document.getElementById("bestMemory");
+
+    if (games) {
+        games.textContent = stats.games;
+    }
+
+    if (wins) {
+        wins.textContent = stats.wins;
+    }
+
+    if (reaction) {
+        reaction.textContent =
             stats.bestReaction === null
                 ? "--"
                 : `${stats.bestReaction} ms`;
     }
 
-    if (memoryEl) {
-        memoryEl.textContent =
+    if (memory) {
+        memory.textContent =
             stats.bestMemory > 0
                 ? stats.bestMemory
                 : "--";
     }
 }
 
-function recordGame() {
+function gamePlayed() {
     stats.games++;
     saveStats();
     updateStats();
 }
 
-function recordWin() {
+function gameWon() {
     stats.wins++;
     saveStats();
     updateStats();
 }
 
 /* =========================================================
-   TIMER MANAGEMENT
+   TIMER CONTROL
    ========================================================= */
 
-function safeTimeout(fn, delay) {
+function timeout(fn, delay) {
+
     const id = setTimeout(() => {
-        activeTimers = activeTimers.filter(timer => timer !== id);
+
+        timers = timers.filter(
+            x => x !== id
+        );
+
         fn();
+
     }, delay);
 
-    activeTimers.push(id);
+    timers.push(id);
+
     return id;
 }
 
-function safeInterval(fn, delay) {
+function interval(fn, delay) {
+
     const id = setInterval(fn, delay);
-    activeIntervals.push(id);
+
+    intervals.push(id);
+
     return id;
 }
 
-function clearAllTimers() {
-    activeTimers.forEach(id => clearTimeout(id));
-    activeIntervals.forEach(id => clearInterval(id));
+function clearTimers() {
 
-    activeTimers = [];
-    activeIntervals = [];
+    timers.forEach(id => {
+        clearTimeout(id);
+    });
+
+    intervals.forEach(id => {
+        clearInterval(id);
+    });
+
+    timers = [];
+    intervals = [];
 }
 
-function cleanupCurrentGame() {
-    clearAllTimers();
+function cleanupGame() {
 
-    if (typeof activeCleanup === "function") {
+    clearTimers();
+
+    if (typeof cleanupFunction === "function") {
+
         try {
-            activeCleanup();
+            cleanupFunction();
         } catch (error) {
-            console.warn("Game cleanup error:", error);
+            console.warn(
+                "Game cleanup error:",
+                error
+            );
         }
     }
 
-    activeCleanup = null;
+    cleanupFunction = null;
 }
 
 /* =========================================================
@@ -145,1428 +190,1682 @@ function cleanupCurrentGame() {
    ========================================================= */
 
 function openGame(title, gameFunction) {
-    cleanupCurrentGame();
 
-    if (modalTitle) {
-        modalTitle.textContent = title;
-    }
+    cleanupGame();
 
-    if (gameArea) {
-        gameArea.innerHTML = "";
-    }
+    modalTitle.textContent = title;
+
+    gameArea.innerHTML = "";
 
     modal.classList.add("show");
 
-    recordGame();
+    gamePlayed();
 
-    gameFunction();
+    try {
+        gameFunction();
+    } catch (error) {
+
+        console.error(
+            "Game error:",
+            error
+        );
+
+        gameArea.innerHTML = `
+            <div style="
+                text-align:center;
+                padding:40px;
+            ">
+                <h2>Game Error</h2>
+
+                <p>
+                    This game encountered an error.
+                </p>
+
+                <button
+                    id="reloadGameButton"
+                    class="game-btn">
+                    Try Again
+                </button>
+            </div>
+        `;
+
+        const reload =
+            document.getElementById(
+                "reloadGameButton"
+            );
+
+        if (reload) {
+            reload.onclick = () => {
+                openGame(
+                    title,
+                    gameFunction
+                );
+            };
+        }
+    }
 }
 
 function closeGame() {
-    cleanupCurrentGame();
 
-    if (modal) {
-        modal.classList.remove("show");
-    }
+    cleanupGame();
 
-    if (gameArea) {
-        gameArea.innerHTML = "";
-    }
+    modal.classList.remove("show");
+
+    gameArea.innerHTML = "";
 }
 
-if (closeModalBtn) {
-    closeModalBtn.addEventListener("click", closeGame);
+/* =========================================================
+   CLOSE BUTTON
+   ========================================================= */
+
+if (closeModal) {
+
+    closeModal.addEventListener(
+        "click",
+        closeGame
+    );
 }
 
-if (modal) {
-    modal.addEventListener("click", event => {
+/* =========================================================
+   CLICK OUTSIDE MODAL
+   ========================================================= */
+
+modal.addEventListener(
+    "click",
+    event => {
+
         if (event.target === modal) {
             closeGame();
         }
-    });
-}
 
-document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && modal.classList.contains("show")) {
-        closeGame();
     }
-});
+);
 
 /* =========================================================
-   GAME CARD BUTTONS
+   ESC KEY
    ========================================================= */
 
-document.querySelectorAll("[data-game]").forEach(button => {
-    button.addEventListener("click", () => {
-        const game = button.dataset.game;
+document.addEventListener(
+    "keydown",
+    event => {
 
-        const games = {
-            reaction: ["Reaction Time", reaction],
-            memory: ["Memory Match", memory],
-            sequence: ["Sequence Memory", sequence],
-            number: ["Number Memory", numberMemory],
-            sudoku: ["Classic Sudoku", sudoku],
-            wordSudoku: ["Word Sudoku", wordSudoku],
-            fifteen: ["15 Puzzle", fifteen],
-            lights: ["Lights Out", lightsOut],
-            stroop: ["Stroop Focus", stroop],
-            pattern: ["Pattern Challenge", pattern],
-            odd: ["Odd One Out", oddOneOut],
-            scramble: ["Word Scramble", scramble],
-            aim: ["Aim Trainer", aimTrainer],
-            typing: ["Typing Speed", typing],
-            focus: ["Focus Test", focusTest],
-            math: ["Quick Math", quickMath],
-            anagram: ["Anagram", anagram],
-            wordsearch: ["Word Search", wordSearch],
-            choice: ["Choice Reaction", choiceReaction]
-        };
-
-        if (games[game]) {
-            openGame(games[game][0], games[game][1]);
+        if (
+            event.key === "Escape" &&
+            modal.classList.contains("show")
+        ) {
+            closeGame();
         }
-    });
-});
+
+    }
+);
 
 /* =========================================================
-   1. REACTION TIME
+   GAME BUTTON SYSTEM
    ========================================================= */
 
-function reaction() {
-    let startTime = 0;
-    let waiting = true;
-    let finished = false;
+/*
+   IMPORTANT:
+   Event delegation means the cards work even if
+   their internal structure changes slightly.
+*/
 
-    gameArea.innerHTML = `
-        <div class="game-intro">
-            <h2>Reaction Time</h2>
-            <p>Wait for the box to turn green, then click as quickly as possible.</p>
-            <button id="reactionStart" class="game-btn">Start</button>
-            <div id="reactionBox" class="reaction-box">WAIT</div>
-            <div id="reactionResult" class="result"></div>
-        </div>
-    `;
+const gameFunctions = {
 
-    const startBtn = document.getElementById("reactionStart");
-    const box = document.getElementById("reactionBox");
-    const result = document.getElementById("reactionResult");
+    reaction: [
+        "Reaction Time",
+        reaction
+    ],
 
-    startBtn.addEventListener("click", () => {
-        if (!waiting) return;
+    memory: [
+        "Memory Match",
+        memory
+    ],
 
-        waiting = false;
-        finished = false;
+    sequence: [
+        "Sequence Memory",
+        sequence
+    ],
 
-        box.textContent = "WAIT...";
-        box.classList.remove("ready");
+    number: [
+        "Number Memory",
+        numberMemory
+    ],
 
-        const delay = 1200 + Math.random() * 3000;
+    sudoku: [
+        "Classic Sudoku",
+        sudoku
+    ],
 
-        safeTimeout(() => {
-            startTime = performance.now();
+    wordSudoku: [
+        "Word Sudoku",
+        wordSudoku
+    ],
 
-            box.textContent = "CLICK!";
-            box.classList.add("ready");
-        }, delay);
-    });
+    fifteen: [
+        "15 Puzzle",
+        fifteen
+    ],
 
-    box.addEventListener("click", () => {
-        if (waiting || finished) return;
+    lights: [
+        "Lights Out",
+        lightsOut
+    ],
 
-        if (!box.classList.contains("ready")) {
-            clearAllTimers();
+    stroop: [
+        "Stroop Focus",
+        stroop
+    ],
 
-            box.textContent = "TOO EARLY!";
-            result.textContent = "Press Start and try again.";
+    pattern: [
+        "Pattern Challenge",
+        pattern
+    ],
 
-            waiting = true;
+    odd: [
+        "Odd One Out",
+        oddOneOut
+    ],
+
+    scramble: [
+        "Word Scramble",
+        scramble
+    ],
+
+    aim: [
+        "Aim Trainer",
+        aimTrainer
+    ],
+
+    typing: [
+        "Typing Speed",
+        typing
+    ],
+
+    focus: [
+        "Focus Test",
+        focusTest
+    ],
+
+    math: [
+        "Quick Math",
+        quickMath
+    ],
+
+    anagram: [
+        "Anagram",
+        anagram
+    ],
+
+    wordsearch: [
+        "Word Search",
+        wordSearch
+    ],
+
+    choice: [
+        "Choice Reaction",
+        choiceReaction
+    ]
+
+};
+
+/* =========================================================
+   CARD CLICK HANDLER
+   ========================================================= */
+
+document.addEventListener(
+    "click",
+    event => {
+
+        const button =
+            event.target.closest(
+                "[data-game]"
+            );
+
+        if (!button) return;
+
+        const game =
+            button.getAttribute(
+                "data-game"
+            );
+
+        if (!gameFunctions[game]) {
+
+            console.warn(
+                "Unknown game:",
+                game
+            );
+
             return;
         }
 
-        const reactionTime = Math.round(performance.now() - startTime);
+        event.preventDefault();
 
-        finished = true;
+        const title =
+            gameFunctions[game][0];
+
+        const fn =
+            gameFunctions[game][1];
+
+        openGame(title, fn);
+    }
+);
+
+/* =========================================================
+   REACTION TIME
+   ========================================================= */
+
+function reaction() {
+
+    let waiting = false;
+    let ready = false;
+    let start = 0;
+
+    gameArea.innerHTML = `
+
+        <div class="game-intro">
+
+            <h2>Reaction Time</h2>
+
+            <p>
+                Click Start, wait for green,
+                then click as quickly as possible.
+            </p>
+
+            <button
+                id="reactionStart"
+                class="game-btn">
+                Start
+            </button>
+
+            <div
+                id="reactionBox"
+                class="reaction-box">
+                READY
+            </div>
+
+            <div
+                id="reactionResult"
+                class="result">
+            </div>
+
+        </div>
+
+    `;
+
+    const startButton =
+        document.getElementById(
+            "reactionStart"
+        );
+
+    const box =
+        document.getElementById(
+            "reactionBox"
+        );
+
+    const result =
+        document.getElementById(
+            "reactionResult"
+        );
+
+    startButton.onclick = () => {
+
+        clearTimers();
+
         waiting = true;
+        ready = false;
 
-        box.textContent = `${reactionTime} ms`;
+        box.textContent =
+            "WAIT...";
+
+        box.classList.remove(
+            "ready"
+        );
+
+        timeout(() => {
+
+            ready = true;
+            waiting = false;
+
+            start =
+                performance.now();
+
+            box.textContent =
+                "CLICK!";
+
+            box.classList.add(
+                "ready"
+            );
+
+        }, 1000 + Math.random() * 2500);
+    };
+
+    box.onclick = () => {
+
+        if (!waiting && !ready) {
+            return;
+        }
+
+        if (waiting) {
+
+            clearTimers();
+
+            waiting = false;
+
+            box.textContent =
+                "TOO EARLY!";
+
+            result.textContent =
+                "Press Start and try again.";
+
+            return;
+        }
+
+        const time =
+            Math.round(
+                performance.now() - start
+            );
+
+        ready = false;
+
+        box.textContent =
+            `${time} ms`;
+
+        box.classList.remove(
+            "ready"
+        );
+
+        result.textContent =
+            "🎉 Great reaction!";
 
         if (
             stats.bestReaction === null ||
-            reactionTime < stats.bestReaction
+            time < stats.bestReaction
         ) {
-            stats.bestReaction = reactionTime;
+
+            stats.bestReaction =
+                time;
         }
 
-        recordWin();
-        saveStats();
-        updateStats();
-
-        result.textContent = "Great reaction!";
-    });
+        gameWon();
+    };
 }
 
 /* =========================================================
-   2. MEMORY MATCH
+   MEMORY MATCH
    ========================================================= */
 
 function memory() {
+
     const symbols = [
-        "🍎", "🍎",
-        "🚀", "🚀",
-        "⭐", "⭐",
-        "🎯", "🎯",
-        "🧠", "🧠",
-        "🔥", "🔥",
-        "🌎", "🌎",
-        "⚡", "⚡"
+        "🍎","🍎",
+        "🚀","🚀",
+        "⭐","⭐",
+        "🎯","🎯",
+        "🧠","🧠",
+        "🔥","🔥",
+        "🌎","🌎",
+        "⚡","⚡"
     ];
 
-    symbols.sort(() => Math.random() - 0.5);
+    symbols.sort(
+        () => Math.random() - 0.5
+    );
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Memory Match</h2>
-            <p>Find all matching pairs.</p>
 
-            <div id="memoryGrid" class="memory-grid"></div>
+            <p>
+                Find all matching pairs.
+            </p>
 
-            <div id="memoryStatus" class="result">
+            <div
+                id="memoryGrid"
+                class="memory-grid">
+            </div>
+
+            <div
+                id="memoryStatus"
+                class="result">
                 Matches: 0 / 8
             </div>
+
         </div>
+
     `;
 
-    const grid = document.getElementById("memoryGrid");
-    const status = document.getElementById("memoryStatus");
+    const grid =
+        document.getElementById(
+            "memoryGrid"
+        );
+
+    const status =
+        document.getElementById(
+            "memoryStatus"
+        );
 
     let first = null;
     let second = null;
     let locked = false;
     let matches = 0;
 
-    symbols.forEach((symbol, index) => {
-        const card = document.createElement("button");
+    symbols.forEach(symbol => {
 
-        card.className = "memory-card";
-        card.dataset.symbol = symbol;
-        card.dataset.index = index;
-        card.textContent = "?";
+        const card =
+            document.createElement(
+                "button"
+            );
 
-        card.addEventListener("click", () => {
-            if (locked || card.classList.contains("matched")) return;
+        card.type = "button";
 
-            card.textContent = symbol;
-            card.classList.add("flipped");
+        card.className =
+            "memory-card";
+
+        card.textContent =
+            "?";
+
+        card.dataset.symbol =
+            symbol;
+
+        card.onclick = () => {
+
+            if (
+                locked ||
+                card.classList.contains(
+                    "matched"
+                )
+            ) {
+                return;
+            }
+
+            card.textContent =
+                symbol;
+
+            card.classList.add(
+                "flipped"
+            );
 
             if (!first) {
+
                 first = card;
+
                 return;
             }
 
             second = card;
+
             locked = true;
 
-            if (first.dataset.symbol === second.dataset.symbol) {
-                first.classList.add("matched");
-                second.classList.add("matched");
+            if (
+                first.dataset.symbol ===
+                second.dataset.symbol
+            ) {
+
+                first.classList.add(
+                    "matched"
+                );
+
+                second.classList.add(
+                    "matched"
+                );
 
                 matches++;
 
-                status.textContent = `Matches: ${matches} / 8`;
+                status.textContent =
+                    `Matches: ${matches} / 8`;
 
                 first = null;
                 second = null;
                 locked = false;
 
                 if (matches === 8) {
-                    recordWin();
-                    status.textContent = "🎉 All pairs matched!";
-                }
-            } else {
-                safeTimeout(() => {
-                    first.textContent = "?";
-                    second.textContent = "?";
 
-                    first.classList.remove("flipped");
-                    second.classList.remove("flipped");
+                    status.textContent =
+                        "🎉 You found every pair!";
+
+                    gameWon();
+                }
+
+            } else {
+
+                timeout(() => {
+
+                    if (!first || !second) {
+                        return;
+                    }
+
+                    first.textContent =
+                        "?";
+
+                    second.textContent =
+                        "?";
+
+                    first.classList.remove(
+                        "flipped"
+                    );
+
+                    second.classList.remove(
+                        "flipped"
+                    );
 
                     first = null;
                     second = null;
+
                     locked = false;
+
                 }, 700);
             }
-        });
+        };
 
         grid.appendChild(card);
     });
 }
 
 /* =========================================================
-   3. SEQUENCE MEMORY
+   SEQUENCE MEMORY
    ========================================================= */
 
 function sequence() {
+
     let level = 1;
-    let sequenceList = [];
-    let playerIndex = 0;
-    let acceptingInput = false;
-    let gameRunning = false;
-    let generation = 0;
+    let sequence = [];
+    let player = 0;
+    let accepting = false;
+    let playing = false;
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Sequence Memory</h2>
-            <p>Watch the sequence, then repeat it.</p>
 
-            <div id="sequenceBoard" class="sequence-board"></div>
+            <p>
+                Watch the lights and repeat
+                the exact sequence.
+            </p>
 
-            <div id="sequenceStatus" class="result">
-                Level 1
+            <div
+                id="sequenceBoard"
+                class="sequence-board">
             </div>
 
-            <button id="sequenceStart" class="game-btn">
+            <div
+                id="sequenceStatus"
+                class="result">
+                Press Start
+            </div>
+
+            <button
+                id="sequenceStart"
+                class="game-btn">
                 Start
             </button>
+
         </div>
+
     `;
 
-    const board = document.getElementById("sequenceBoard");
-    const status = document.getElementById("sequenceStatus");
-    const startBtn = document.getElementById("sequenceStart");
+    const board =
+        document.getElementById(
+            "sequenceBoard"
+        );
+
+    const status =
+        document.getElementById(
+            "sequenceStatus"
+        );
+
+    const startButton =
+        document.getElementById(
+            "sequenceStart"
+        );
 
     const cells = [];
 
     for (let i = 0; i < 9; i++) {
-        const cell = document.createElement("button");
 
-        cell.className = "sequence-cell";
-        cell.dataset.index = i;
+        const cell =
+            document.createElement(
+                "button"
+            );
 
-        cell.addEventListener("click", () => {
-            if (!acceptingInput) return;
+        cell.type = "button";
 
-            const selected = Number(cell.dataset.index);
+        cell.className =
+            "sequence-cell";
 
-            if (selected !== sequenceList[playerIndex]) {
-                acceptingInput = false;
-                gameRunning = false;
+        cell.dataset.index =
+            i;
 
-                cell.classList.add("wrong");
+        cell.onclick = () => {
+
+            if (!accepting) {
+                return;
+            }
+
+            const clicked =
+                Number(
+                    cell.dataset.index
+                );
+
+            if (
+                clicked !==
+                sequence[player]
+            ) {
+
+                accepting = false;
+                playing = false;
+
+                cell.classList.add(
+                    "wrong"
+                );
 
                 status.textContent =
-                    `Game Over — You reached level ${level}`;
-
-                if (level - 1 > stats.bestMemory) {
-                    stats.bestMemory = level - 1;
-                    saveStats();
-                    updateStats();
-                }
+                    `Game Over — Level ${level}`;
 
                 return;
             }
 
-            cell.classList.add("active");
+            cell.classList.add(
+                "active"
+            );
 
-            safeTimeout(() => {
-                cell.classList.remove("active");
+            timeout(() => {
+                cell.classList.remove(
+                    "active"
+                );
             }, 180);
 
-            playerIndex++;
+            player++;
 
-            if (playerIndex === sequenceList.length) {
-                acceptingInput = false;
+            if (
+                player ===
+                sequence.length
+            ) {
+
+                accepting = false;
 
                 level++;
 
-                if (level - 1 > stats.bestMemory) {
-                    stats.bestMemory = level - 1;
-                    saveStats();
-                    updateStats();
-                }
+                stats.bestMemory =
+                    Math.max(
+                        stats.bestMemory,
+                        level - 1
+                    );
 
-                status.textContent = `Level ${level}`;
+                saveStats();
+                updateStats();
 
-                safeTimeout(() => {
-                    if (gameRunning) {
-                        nextRound();
-                    }
-                }, 450);
+                status.textContent =
+                    `Level ${level}`;
+
+                timeout(
+                    showSequence,
+                    500
+                );
             }
-        });
+        };
 
         cells.push(cell);
+
         board.appendChild(cell);
     }
 
-    function nextRound() {
-        generation++;
+    function showSequence() {
 
-        const currentGeneration = generation;
+        if (!playing) {
+            return;
+        }
 
-        playerIndex = 0;
-        acceptingInput = false;
+        accepting = false;
 
-        const newIndex = Math.floor(Math.random() * 9);
+        sequence.push(
+            Math.floor(
+                Math.random() * 9
+            )
+        );
 
-        sequenceList.push(newIndex);
+        player = 0;
 
         status.textContent =
-            `Watch carefully — Level ${level}`;
+            `Watch — Level ${level}`;
 
         cells.forEach(cell => {
+
             cell.disabled = true;
-            cell.classList.remove("active", "wrong");
+
+            cell.classList.remove(
+                "active",
+                "wrong"
+            );
         });
 
-        sequenceList.forEach((index, position) => {
-            safeTimeout(() => {
-                if (currentGeneration !== generation) return;
+        sequence.forEach(
+            (index, position) => {
 
-                const cell = cells[index];
+                timeout(() => {
 
-                cell.classList.add("active");
+                    cells[index]
+                        .classList.add(
+                            "active"
+                        );
 
-                safeTimeout(() => {
-                    cell.classList.remove("active");
-                }, 400);
-            }, position * 650);
-        });
+                    timeout(() => {
 
-        safeTimeout(() => {
-            if (currentGeneration !== generation) return;
+                        cells[index]
+                            .classList.remove(
+                                "active"
+                            );
 
-            acceptingInput = true;
+                    }, 400);
+
+                }, position * 650);
+            }
+        );
+
+        timeout(() => {
+
+            if (!playing) {
+                return;
+            }
 
             cells.forEach(cell => {
                 cell.disabled = false;
             });
 
+            accepting = true;
+
             status.textContent =
                 `Your turn — Level ${level}`;
-        }, sequenceList.length * 650 + 250);
+
+        }, sequence.length * 650 + 400);
     }
 
-    startBtn.addEventListener("click", () => {
-        clearAllTimers();
+    startButton.onclick = () => {
 
-        generation++;
+        clearTimers();
 
         level = 1;
-        sequenceList = [];
-        playerIndex = 0;
-        acceptingInput = false;
-        gameRunning = true;
+        sequence = [];
+        player = 0;
+        accepting = false;
+        playing = true;
 
-        startBtn.disabled = true;
+        startButton.disabled = true;
 
-        nextRound();
-    });
+        showSequence();
+    };
 
-    activeCleanup = () => {
-        generation++;
-        gameRunning = false;
-        acceptingInput = false;
+    cleanupFunction = () => {
+
+        playing = false;
+        accepting = false;
+
     };
 }
 
 /* =========================================================
-   4. NUMBER MEMORY
+   NUMBER MEMORY
    ========================================================= */
 
 function numberMemory() {
+
     let level = 1;
     let number = "";
-    let active = false;
 
-    function render() {
-        gameArea.innerHTML = `
-            <div class="game-intro">
-                <h2>Number Memory</h2>
+    gameArea.innerHTML = `
 
-                <p>
-                    Memorize the number before it disappears.
-                </p>
+        <div class="game-intro">
 
-                <div id="numberDisplay"
-                     style="
-                     font-size:42px;
-                     font-weight:800;
-                     letter-spacing:8px;
-                     margin:25px 0;
-                     ">
-                    ${number}
-                </div>
+            <h2>Number Memory</h2>
 
-                <div id="numberInputArea"></div>
+            <p>
+                Memorize the number.
+                It gets longer every round.
+            </p>
 
-                <div id="numberStatus" class="result">
-                    Level ${level}
-                </div>
+            <div
+                id="numberDisplay"
+                style="
+                font-size:42px;
+                font-weight:900;
+                margin:25px;
+                letter-spacing:7px;">
+                Press Start
             </div>
-        `;
 
-        const inputArea =
-            document.getElementById("numberInputArea");
+            <button
+                id="numberStart"
+                class="game-btn">
+                Start
+            </button>
 
-        if (!active) {
-            inputArea.innerHTML = `
-                <button id="numberStart"
-                        class="game-btn">
-                    Start Level ${level}
-                </button>
-            `;
+            <div
+                id="numberInputArea">
+            </div>
 
-            document
-                .getElementById("numberStart")
-                .addEventListener("click", startRound);
-        }
-    }
+            <div
+                id="numberStatus"
+                class="result">
+                Level 1
+            </div>
 
-    function startRound() {
-        active = true;
+        </div>
+
+    `;
+
+    const display =
+        document.getElementById(
+            "numberDisplay"
+        );
+
+    const startButton =
+        document.getElementById(
+            "numberStart"
+        );
+
+    const inputArea =
+        document.getElementById(
+            "numberInputArea"
+        );
+
+    const status =
+        document.getElementById(
+            "numberStatus"
+        );
+
+    startButton.onclick = () => {
 
         number = "";
 
-        for (let i = 0; i < level; i++) {
-            number += Math.floor(Math.random() * 10);
+        for (
+            let i = 0;
+            i < level;
+            i++
+        ) {
+            number +=
+                Math.floor(
+                    Math.random() * 10
+                );
         }
 
-        render();
+        display.textContent =
+            number;
 
-        safeTimeout(() => {
-            if (!modal.classList.contains("show")) return;
+        startButton.disabled = true;
 
-            const display =
-                document.getElementById("numberDisplay");
+        timeout(() => {
 
-            const inputArea =
-                document.getElementById("numberInputArea");
+            display.textContent =
+                "???";
 
-            if (display) {
-                display.textContent = "???";
+            inputArea.innerHTML = `
+
+                <input
+                    id="numberAnswer"
+                    class="game-input"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="Enter number">
+
+                <button
+                    id="numberCheck"
+                    class="game-btn">
+                    Check
+                </button>
+
+            `;
+
+            const input =
+                document.getElementById(
+                    "numberAnswer"
+                );
+
+            const check =
+                document.getElementById(
+                    "numberCheck"
+                );
+
+            input.focus();
+
+            function checkAnswer() {
+
+                if (
+                    input.value.trim() ===
+                    number
+                ) {
+
+                    status.textContent =
+                        `✅ Correct! Level ${level} complete.`;
+
+                    stats.bestMemory =
+                        Math.max(
+                            stats.bestMemory,
+                            level
+                        );
+
+                    gameWon();
+
+                    level++;
+
+                    timeout(() => {
+                        numberMemory();
+                    }, 1000);
+
+                } else {
+
+                    status.textContent =
+                        `❌ Wrong. The number was ${number}.`;
+
+                    timeout(() => {
+                        numberMemory();
+                    }, 1200);
+                }
             }
 
-            if (inputArea) {
-                inputArea.innerHTML = `
-                    <input
-                        id="numberAnswer"
-                        type="text"
-                        inputmode="numeric"
-                        autocomplete="off"
-                        placeholder="Enter the number"
-                        class="game-input"
-                    >
+            check.onclick =
+                checkAnswer;
 
-                    <button id="numberSubmit"
-                            class="game-btn">
-                        Check
-                    </button>
-                `;
+            input.onkeydown =
+                event => {
 
-                const input =
-                    document.getElementById("numberAnswer");
-
-                const submit =
-                    document.getElementById("numberSubmit");
-
-                input.focus();
-
-                submit.addEventListener("click", checkAnswer);
-
-                input.addEventListener("keydown", event => {
-                    if (event.key === "Enter") {
+                    if (
+                        event.key ===
+                        "Enter"
+                    ) {
                         checkAnswer();
                     }
-                });
-            }
-        }, Math.max(1200, 1800 - level * 40));
-    }
 
-    function checkAnswer() {
-        const input =
-            document.getElementById("numberAnswer");
+                };
 
-        const status =
-            document.getElementById("numberStatus");
-
-        if (!input || !status) return;
-
-        const answer = input.value.trim();
-
-        if (answer === number) {
-            recordWin();
-
-            stats.bestMemory =
-                Math.max(stats.bestMemory, level);
-
-            saveStats();
-            updateStats();
-
-            status.textContent =
-                `✅ Correct! Level ${level} complete.`;
-
-            level++;
-            active = false;
-
-            safeTimeout(() => {
-                if (modal.classList.contains("show")) {
-                    render();
-                }
-            }, 900);
-        } else {
-            status.textContent =
-                `❌ Incorrect. The number was ${number}.`;
-
-            active = false;
-
-            safeTimeout(() => {
-                if (modal.classList.contains("show")) {
-                    render();
-                }
-            }, 1200);
-        }
-    }
-
-    render();
+        }, 1500);
+    };
 }
 
 /* =========================================================
-   5. CLASSIC SUDOKU
-   REAL VALID GENERATOR
+   CLASSIC SUDOKU
    ========================================================= */
 
 function sudoku() {
-    const SIZE = 9;
 
-    let solution = [];
-    let puzzle = [];
-    let selectedCell = null;
+    const solution = [
+        [5,3,4,6,7,8,9,1,2],
+        [6,7,2,1,9,5,3,4,8],
+        [1,9,8,3,4,2,5,6,7],
+        [8,5,9,7,6,1,4,2,3],
+        [4,2,6,8,5,3,7,9,1],
+        [7,1,3,9,2,4,8,5,6],
+        [9,6,1,5,3,7,2,8,4],
+        [2,8,7,4,1,9,6,3,5],
+        [3,4,5,2,8,6,1,7,9]
+    ];
+
+    let board =
+        solution.map(row => [...row]);
 
     gameArea.innerHTML = `
-        <div class="game-intro sudoku-game">
+
+        <div class="game-intro">
+
             <h2>Classic Sudoku</h2>
 
             <p>
-                Fill every empty square so each row,
-                column and 3×3 box contains 1–9 exactly once.
+                Complete the Sudoku grid.
             </p>
 
-            <div id="sudokuGrid" class="sudoku-grid"></div>
+            <div
+                id="sudokuGrid"
+                class="sudoku-grid">
+            </div>
 
-            <div id="sudokuStatus" class="result">
+            <div
+                id="sudokuStatus"
+                class="result">
                 Complete the puzzle.
             </div>
 
-            <button id="sudokuNew"
-                    class="game-btn">
+            <button
+                id="sudokuNew"
+                class="game-btn">
                 New Puzzle
             </button>
+
         </div>
-    `;
 
-    const grid = document.getElementById("sudokuGrid");
-    const status = document.getElementById("sudokuStatus");
-    const newBtn = document.getElementById("sudokuNew");
-
-    function createEmptyBoard() {
-        return Array.from(
-            { length: SIZE },
-            () => Array(SIZE).fill(0)
-        );
-    }
-
-    function shuffle(array) {
-        const copy = [...array];
-
-        for (let i = copy.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-
-            [copy[i], copy[j]] =
-                [copy[j], copy[i]];
-        }
-
-        return copy;
-    }
-
-    function isSafe(board, row, col, value) {
-        for (let c = 0; c < SIZE; c++) {
-            if (board[row][c] === value) {
-                return false;
-            }
-        }
-
-        for (let r = 0; r < SIZE; r++) {
-            if (board[r][col] === value) {
-                return false;
-            }
-        }
-
-        const boxRow =
-            Math.floor(row / 3) * 3;
-
-        const boxCol =
-            Math.floor(col / 3) * 3;
-
-        for (let r = boxRow; r < boxRow + 3; r++) {
-            for (let c = boxCol; c < boxCol + 3; c++) {
-                if (board[r][c] === value) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    function solve(board) {
-        for (let row = 0; row < SIZE; row++) {
-            for (let col = 0; col < SIZE; col++) {
-                if (board[row][col] === 0) {
-                    const numbers = shuffle(
-                        [1, 2, 3, 4, 5, 6, 7, 8, 9]
-                    );
-
-                    for (const value of numbers) {
-                        if (isSafe(board, row, col, value)) {
-                            board[row][col] = value;
-
-                            if (solve(board)) {
-                                return true;
-                            }
-
-                            board[row][col] = 0;
-                        }
-                    }
-
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    function countSolutions(board, limit = 2) {
-        let count = 0;
-
-        function search() {
-            if (count >= limit) return;
-
-            let bestRow = -1;
-            let bestCol = -1;
-            let bestCandidates = null;
-
-            for (let row = 0; row < SIZE; row++) {
-                for (let col = 0; col < SIZE; col++) {
-                    if (board[row][col] !== 0) continue;
-
-                    const candidates = [];
-
-                    for (let value = 1; value <= 9; value++) {
-                        if (isSafe(board, row, col, value)) {
-                            candidates.push(value);
-                        }
-                    }
-
-                    if (candidates.length === 0) {
-                        return;
-                    }
-
-                    if (
-                        bestCandidates === null ||
-                        candidates.length <
-                            bestCandidates.length
-                    ) {
-                        bestCandidates = candidates;
-                        bestRow = row;
-                        bestCol = col;
-
-                        if (candidates.length === 1) {
-                            break;
-                        }
-                    }
-                }
-
-                if (
-                    bestCandidates &&
-                    bestCandidates.length === 1
-                ) {
-                    break;
-                }
-            }
-
-            if (bestCandidates === null) {
-                count++;
-                return;
-            }
-
-            for (const value of bestCandidates) {
-                board[bestRow][bestCol] = value;
-
-                search();
-
-                board[bestRow][bestCol] = 0;
-
-                if (count >= limit) {
-                    return;
-                }
-            }
-        }
-
-        search();
-
-        return count;
-    }
-
-    function generatePuzzle() {
-        const board = createEmptyBoard();
-
-        solve(board);
-
-        solution = board.map(row => [...row]);
-
-        puzzle = board.map(row => [...row]);
-
-        /*
-         * Remove numbers while keeping a unique solution.
-         * We don't remove too many cells so the puzzle
-         * remains reasonable for a normal player.
-         */
-
-        const positions = shuffle(
-            Array.from({ length: 81 }, (_, i) => i)
-        );
-
-        let removed = 0;
-        const target = 46;
-
-        for (const position of positions) {
-            if (removed >= target) break;
-
-            const row = Math.floor(position / 9);
-            const col = position % 9;
-
-            const backup = puzzle[row][col];
-
-            puzzle[row][col] = 0;
-
-            const testBoard =
-                puzzle.map(r => [...r]);
-
-            const solutions =
-                countSolutions(testBoard, 2);
-
-            if (solutions === 1) {
-                removed++;
-            } else {
-                puzzle[row][col] = backup;
-            }
-        }
-    }
-
-    function render() {
-        grid.innerHTML = "";
-
-        for (let row = 0; row < SIZE; row++) {
-            for (let col = 0; col < SIZE; col++) {
-                const cell = document.createElement("input");
-
-                cell.className = "sudoku-cell";
-
-                cell.type = "text";
-                cell.inputMode = "numeric";
-                cell.maxLength = 1;
-
-                cell.dataset.row = row;
-                cell.dataset.col = col;
-
-                if (puzzle[row][col] !== 0) {
-                    cell.value = puzzle[row][col];
-                    cell.readOnly = true;
-                    cell.classList.add("given");
-                }
-
-                cell.addEventListener("input", () => {
-                    if (cell.readOnly) return;
-
-                    cell.value =
-                        cell.value.replace(/[^1-9]/g, "");
-
-                    if (cell.value) {
-                        puzzle[row][col] =
-                            Number(cell.value);
-                    } else {
-                        puzzle[row][col] = 0;
-                    }
-
-                    selectedCell = cell;
-
-                    validateBoard();
-                });
-
-                cell.addEventListener("focus", () => {
-                    selectedCell = cell;
-                    highlightRelated(row, col);
-                });
-
-                grid.appendChild(cell);
-            }
-        }
-    }
-
-    function highlightRelated(row, col) {
-        const cells =
-            grid.querySelectorAll(".sudoku-cell");
-
-        cells.forEach(cell => {
-            cell.classList.remove("related");
-        });
-
-        cells.forEach(cell => {
-            const r = Number(cell.dataset.row);
-            const c = Number(cell.dataset.col);
-
-            if (
-                r === row ||
-                c === col ||
-                (
-                    Math.floor(r / 3) === Math.floor(row / 3) &&
-                    Math.floor(c / 3) === Math.floor(col / 3)
-                )
-            ) {
-                cell.classList.add("related");
-            }
-        });
-    }
-
-    function validateBoard() {
-        let empty = false;
-        let invalid = false;
-
-        const cells =
-            grid.querySelectorAll(".sudoku-cell");
-
-        cells.forEach(cell => {
-            cell.classList.remove("invalid");
-        });
-
-        for (let row = 0; row < SIZE; row++) {
-            for (let col = 0; col < SIZE; col++) {
-                if (puzzle[row][col] === 0) {
-                    empty = true;
-                    continue;
-                }
-
-                const value = puzzle[row][col];
-
-                puzzle[row][col] = 0;
-
-                if (!isSafe(puzzle, row, col, value)) {
-                    invalid = true;
-
-                    const cell = grid.querySelector(
-                        `[data-row="${row}"][data-col="${col}"]`
-                    );
-
-                    if (cell) {
-                        cell.classList.add("invalid");
-                    }
-                }
-
-                puzzle[row][col] = value;
-            }
-        }
-
-        if (invalid) {
-            status.textContent =
-                "⚠️ Some numbers conflict.";
-            return;
-        }
-
-        if (empty) {
-            status.textContent =
-                "Keep going — the board is valid so far.";
-            return;
-        }
-
-        if (isSolved()) {
-            recordWin();
-
-            status.textContent =
-                "🎉 Sudoku solved correctly!";
-        }
-    }
-
-    function isSolved() {
-        for (let row = 0; row < SIZE; row++) {
-            for (let col = 0; col < SIZE; col++) {
-                if (puzzle[row][col] !== solution[row][col]) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    function newPuzzle() {
-        generatePuzzle();
-        render();
-
-        status.textContent =
-            "Complete the puzzle.";
-    }
-
-    newBtn.addEventListener("click", newPuzzle);
-
-    newPuzzle();
-}
-
-/* =========================================================
-   6. WORD SUDOKU
-   ========================================================= */
-
-function wordSudoku() {
-    const symbols = [
-        "A", "B", "C",
-        "D", "E", "F",
-        "G", "H", "I"
-    ];
-
-    let solution = [];
-    let puzzle = [];
-
-    gameArea.innerHTML = `
-        <div class="game-intro sudoku-game">
-            <h2>Word Sudoku</h2>
-
-            <p>
-                Use A–I instead of numbers.
-                Each row, column and 3×3 box must contain
-                A–I exactly once.
-            </p>
-
-            <div id="wordSudokuGrid"
-                 class="sudoku-grid"></div>
-
-            <div id="wordSudokuStatus"
-                 class="result">
-                Fill the empty cells.
-            </div>
-
-            <button id="wordSudokuNew"
-                    class="game-btn">
-                New Puzzle
-            </button>
-        </div>
     `;
 
     const grid =
-        document.getElementById("wordSudokuGrid");
+        document.getElementById(
+            "sudokuGrid"
+        );
 
     const status =
-        document.getElementById("wordSudokuStatus");
-
-    const newBtn =
-        document.getElementById("wordSudokuNew");
-
-    function shuffle(array) {
-        const copy = [...array];
-
-        for (let i = copy.length - 1; i > 0; i--) {
-            const j =
-                Math.floor(Math.random() * (i + 1));
-
-            [copy[i], copy[j]] =
-                [copy[j], copy[i]];
-        }
-
-        return copy;
-    }
-
-    function createBoard() {
-        return Array.from(
-            { length: 9 },
-            () => Array(9).fill("")
+        document.getElementById(
+            "sudokuStatus"
         );
-    }
 
-    function isSafe(board, row, col, value) {
-        for (let c = 0; c < 9; c++) {
-            if (board[row][c] === value) {
-                return false;
-            }
-        }
-
-        for (let r = 0; r < 9; r++) {
-            if (board[r][col] === value) {
-                return false;
-            }
-        }
-
-        const boxRow =
-            Math.floor(row / 3) * 3;
-
-        const boxCol =
-            Math.floor(col / 3) * 3;
-
-        for (let r = boxRow; r < boxRow + 3; r++) {
-            for (let c = boxCol; c < boxCol + 3; c++) {
-                if (board[r][c] === value) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    function solve(board) {
-        for (let row = 0; row < 9; row++) {
-            for (let col = 0; col < 9; col++) {
-                if (!board[row][col]) {
-                    for (const value of shuffle(symbols)) {
-                        if (isSafe(board, row, col, value)) {
-                            board[row][col] = value;
-
-                            if (solve(board)) {
-                                return true;
-                            }
-
-                            board[row][col] = "";
-                        }
-                    }
-
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
+    const newButton =
+        document.getElementById(
+            "sudokuNew"
+        );
 
     function generate() {
-        const board = createBoard();
 
-        solve(board);
+        board =
+            solution.map(
+                row => [...row]
+            );
 
-        solution =
-            board.map(row => [...row]);
+        const positions =
+            Array.from(
+                { length: 81 },
+                (_, i) => i
+            );
 
-        puzzle =
-            board.map(row => [...row]);
-
-        const positions = shuffle(
-            Array.from({ length: 81 }, (_, i) => i)
+        positions.sort(
+            () => Math.random() - 0.5
         );
 
-        let removed = 0;
+        for (
+            let i = 0;
+            i < 45;
+            i++
+        ) {
 
-        for (const position of positions) {
-            if (removed >= 48) break;
+            const pos =
+                positions[i];
 
             const row =
-                Math.floor(position / 9);
+                Math.floor(pos / 9);
 
             const col =
-                position % 9;
+                pos % 9;
 
-            puzzle[row][col] = "";
-
-            removed++;
+            board[row][col] = 0;
         }
     }
 
     function render() {
+
         grid.innerHTML = "";
 
-        for (let row = 0; row < 9; row++) {
-            for (let col = 0; col < 9; col++) {
-                const cell =
-                    document.createElement("input");
+        for (
+            let row = 0;
+            row < 9;
+            row++
+        ) {
 
-                cell.className = "sudoku-cell";
+            for (
+                let col = 0;
+                col < 9;
+                col++
+            ) {
 
-                cell.type = "text";
-                cell.maxLength = 1;
+                const input =
+                    document.createElement(
+                        "input"
+                    );
 
-                cell.dataset.row = row;
-                cell.dataset.col = col;
+                input.className =
+                    "sudoku-cell";
 
-                if (puzzle[row][col]) {
-                    cell.value =
-                        puzzle[row][col];
-
-                    cell.readOnly = true;
-                    cell.classList.add("given");
-                }
-
-                cell.addEventListener("input", () => {
-                    if (cell.readOnly) return;
-
-                    let value =
-                        cell.value
-                            .toUpperCase()
-                            .replace(/[^A-I]/g, "");
-
-                    cell.value = value;
-
-                    puzzle[row][col] =
-                        value || "";
-
-                    validateBoard();
-                });
-
-                cell.addEventListener("focus", () => {
-                    highlightRelated(row, col);
-                });
-
-                grid.appendChild(cell);
-            }
-        }
-    }
-
-    function highlightRelated(row, col) {
-        grid.querySelectorAll(".sudoku-cell")
-            .forEach(cell => {
-                cell.classList.remove("related");
-            });
-
-        grid.querySelectorAll(".sudoku-cell")
-            .forEach(cell => {
-                const r =
-                    Number(cell.dataset.row);
-
-                const c =
-                    Number(cell.dataset.col);
+                input.type = "text";
+                input.maxLength = 1;
+                input.inputMode =
+                    "numeric";
 
                 if (
-                    r === row ||
-                    c === col ||
-                    (
-                        Math.floor(r / 3) === Math.floor(row / 3) &&
-                        Math.floor(c / 3) === Math.floor(col / 3)
-                    )
+                    board[row][col] !== 0
                 ) {
-                    cell.classList.add("related");
-                }
-            });
-    }
 
-    function validateBoard() {
-        let empty = false;
-        let invalid = false;
+                    input.value =
+                        board[row][col];
 
-        grid.querySelectorAll(".sudoku-cell")
-            .forEach(cell => {
-                cell.classList.remove("invalid");
-            });
+                    input.readOnly =
+                        true;
 
-        for (let row = 0; row < 9; row++) {
-            for (let col = 0; col < 9; col++) {
-                const value =
-                    puzzle[row][col];
+                    input.classList.add(
+                        "given"
+                    );
 
-                if (!value) {
-                    empty = true;
-                    continue;
-                }
+                } else {
 
-                puzzle[row][col] = "";
+                    input.value = "";
 
-                if (!isSafe(puzzle, row, col, value)) {
-                    invalid = true;
+                    input.oninput = () => {
 
-                    const cell =
-                        grid.querySelector(
-                            `[data-row="${row}"][data-col="${col}"]`
-                        );
+                        input.value =
+                            input.value.replace(
+                                /[^1-9]/g,
+                                ""
+                            );
 
-                    if (cell) {
-                        cell.classList.add("invalid");
-                    }
+                        board[row][col] =
+                            Number(
+                                input.value
+                            ) || 0;
+
+                        validate();
+                    };
                 }
 
-                puzzle[row][col] = value;
+                grid.appendChild(
+                    input
+                );
             }
         }
-
-        if (invalid) {
-            status.textContent =
-                "⚠️ There is a duplicate in the row, column or box.";
-            return;
-        }
-
-        if (empty) {
-            status.textContent =
-                "✅ No conflicts so far.";
-            return;
-        }
-
-        if (isComplete()) {
-            recordWin();
-
-            status.textContent =
-                "🎉 Word Sudoku solved correctly!";
-        }
     }
 
-    function isComplete() {
-        for (let row = 0; row < 9; row++) {
-            for (let col = 0; col < 9; col++) {
+    function validate() {
+
+        let complete = true;
+
+        let correct = true;
+
+        for (
+            let row = 0;
+            row < 9;
+            row++
+        ) {
+
+            for (
+                let col = 0;
+                col < 9;
+                col++
+            ) {
+
                 if (
-                    puzzle[row][col] !==
+                    board[row][col] === 0
+                ) {
+                    complete = false;
+                }
+
+                if (
+                    board[row][col] !==
                     solution[row][col]
                 ) {
-                    return false;
+                    correct = false;
                 }
             }
         }
 
-        return true;
+        if (!complete) {
+
+            status.textContent =
+                "Keep going...";
+
+            return;
+        }
+
+        if (correct) {
+
+            status.textContent =
+                "🎉 Sudoku solved!";
+
+            gameWon();
+
+        } else {
+
+            status.textContent =
+                "❌ Some answers are incorrect.";
+        }
     }
 
-    function newPuzzle() {
+    newButton.onclick = () => {
+
         generate();
         render();
 
         status.textContent =
-            "Fill the empty cells.";
-    }
+            "New puzzle created.";
 
-    newBtn.addEventListener("click", newPuzzle);
+    };
 
-    newPuzzle();
+    generate();
+    render();
 }
 
 /* =========================================================
-   7. 15 PUZZLE
+   WORD SUDOKU
    ========================================================= */
 
-function fifteen() {
-    let board = [
-        1, 2, 3, 4,
-        5, 6, 7, 8,
-        9, 10, 11, 12,
-        13, 14, 15, 0
+function wordSudoku() {
+
+    const letters = [
+        "A","B","C",
+        "D","E","F",
+        "G","H","I"
     ];
 
+    const solution = [
+        ["A","B","C","D","E","F","G","H","I"],
+        ["D","E","F","G","H","I","A","B","C"],
+        ["G","H","I","A","B","C","D","E","F"],
+
+        ["B","C","D","E","F","G","H","I","A"],
+        ["E","F","G","H","I","A","B","C","D"],
+        ["H","I","A","B","C","D","E","F","G"],
+
+        ["C","D","E","F","G","H","I","A","B"],
+        ["F","G","H","I","A","B","C","D","E"],
+        ["I","A","B","C","D","E","F","G","H"]
+    ];
+
+    let board =
+        solution.map(row => [...row]);
+
     gameArea.innerHTML = `
+
         <div class="game-intro">
-            <h2>15 Puzzle</h2>
-            <p>Arrange the numbers in order.</p>
 
-            <div id="fifteenGrid"
-                 class="fifteen-grid"></div>
+            <h2>Word Sudoku</h2>
 
-            <div id="fifteenStatus"
-                 class="result"></div>
+            <p>
+                Use A–I instead of numbers.
+            </p>
 
-            <button id="fifteenNew"
-                    class="game-btn">
-                Shuffle
+            <div
+                id="wordSudokuGrid"
+                class="sudoku-grid">
+            </div>
+
+            <div
+                id="wordSudokuStatus"
+                class="result">
+                Complete the puzzle.
+            </div>
+
+            <button
+                id="wordSudokuNew"
+                class="game-btn">
+                New Puzzle
             </button>
+
         </div>
+
     `;
 
     const grid =
-        document.getElementById("fifteenGrid");
+        document.getElementById(
+            "wordSudokuGrid"
+        );
 
     const status =
-        document.getElementById("fifteenStatus");
+        document.getElementById(
+            "wordSudokuStatus"
+        );
 
-    function render() {
-        grid.innerHTML = "";
+    const newButton =
+        document.getElementById(
+            "wordSudokuNew"
+        );
 
-        board.forEach((value, index) => {
-            const button =
-                document.createElement("button");
+    function generate() {
 
-            button.className = "puzzle-tile";
+        board =
+            solution.map(
+                row => [...row]
+            );
 
-            if (value === 0) {
-                button.classList.add("empty");
-            } else {
-                button.textContent = value;
-            }
+        const positions =
+            Array.from(
+                { length: 81 },
+                (_, i) => i
+            );
 
-            button.addEventListener("click", () => {
-                move(index);
-            });
+        positions.sort(
+            () => Math.random() - 0.5
+        );
 
-            grid.appendChild(button);
-        });
-    }
-
-    function move(index) {
-        const empty =
-            board.indexOf(0);
-
-        const row =
-            Math.floor(index / 4);
-
-        const col =
-            index % 4;
-
-        const emptyRow =
-            Math.floor(empty / 4);
-
-        const emptyCol =
-            empty % 4;
-
-        const distance =
-            Math.abs(row - emptyRow) +
-            Math.abs(col - emptyCol);
-
-        if (distance !== 1) return;
-
-        [board[index], board[empty]] =
-            [board[empty], board[index]];
-
-        render();
-
-        if (
-            board.every(
-                (value, i) =>
-                    value === i + 1 ||
-                    (i === 15 && value === 0)
-            )
+        for (
+            let i = 0;
+            i < 45;
+            i++
         ) {
-            status.textContent =
-                "🎉 Puzzle solved!";
 
-            recordWin();
+            const pos =
+                positions[i];
+
+            const row =
+                Math.floor(pos / 9);
+
+            const col =
+                pos % 9;
+
+            board[row][col] = "";
         }
     }
 
-    function shuffleBoard() {
-        for (let i = 0; i < 250; i++) {
+    function render() {
+
+        grid.innerHTML = "";
+
+        for (
+            let row = 0;
+            row < 9;
+            row++
+        ) {
+
+            for (
+                let col = 0;
+                col < 9;
+                col++
+            ) {
+
+                const input =
+                    document.createElement(
+                        "input"
+                    );
+
+                input.className =
+                    "sudoku-cell";
+
+                input.maxLength = 1;
+
+                if (
+                    board[row][col]
+                ) {
+
+                    input.value =
+                        board[row][col];
+
+                    input.readOnly =
+                        true;
+
+                    input.classList.add(
+                        "given"
+                    );
+
+                } else {
+
+                    input.oninput = () => {
+
+                        let value =
+                            input.value
+                                .toUpperCase()
+                                .replace(
+                                    /[^A-I]/g,
+                                    ""
+                                );
+
+                        input.value =
+                            value;
+
+                        board[row][col] =
+                            value;
+
+                        validate();
+                    };
+                }
+
+                grid.appendChild(
+                    input
+                );
+            }
+        }
+    }
+
+    function validate() {
+
+        let complete = true;
+        let correct = true;
+
+        for (
+            let row = 0;
+            row < 9;
+            row++
+        ) {
+
+            for (
+                let col = 0;
+                col < 9;
+                col++
+            ) {
+
+                if (!board[row][col]) {
+                    complete = false;
+                }
+
+                if (
+                    board[row][col] !==
+                    solution[row][col]
+                ) {
+                    correct = false;
+                }
+            }
+        }
+
+        if (!complete) {
+
+            status.textContent =
+                "Keep going...";
+
+            return;
+        }
+
+        if (correct) {
+
+            status.textContent =
+                "🎉 Word Sudoku solved!";
+
+            gameWon();
+
+        } else {
+
+            status.textContent =
+                "❌ Some answers are incorrect.";
+        }
+    }
+
+    newButton.onclick = () => {
+
+        generate();
+        render();
+
+        status.textContent =
+            "New puzzle created.";
+    };
+
+    generate();
+    render();
+}
+
+/* =========================================================
+   15 PUZZLE
+   ========================================================= */
+
+function fifteen() {
+
+    let board = [
+        1,2,3,4,
+        5,6,7,8,
+        9,10,11,12,
+        13,14,15,0
+    ];
+
+    gameArea.innerHTML = `
+
+        <div class="game-intro">
+
+            <h2>15 Puzzle</h2>
+
+            <p>
+                Arrange the numbers from 1–15.
+            </p>
+
+            <div
+                id="fifteenGrid"
+                class="fifteen-grid">
+            </div>
+
+            <div
+                id="fifteenStatus"
+                class="result">
+            </div>
+
+            <button
+                id="fifteenShuffle"
+                class="game-btn">
+                Shuffle
+            </button>
+
+        </div>
+
+    `;
+
+    const grid =
+        document.getElementById(
+            "fifteenGrid"
+        );
+
+    const status =
+        document.getElementById(
+            "fifteenStatus"
+        );
+
+    function render() {
+
+        grid.innerHTML = "";
+
+        board.forEach(
+            (value, index) => {
+
+                const button =
+                    document.createElement(
+                        "button"
+                    );
+
+                button.type = "button";
+
+                button.className =
+                    "puzzle-tile";
+
+                if (value !== 0) {
+                    button.textContent =
+                        value;
+                } else {
+                    button.classList.add(
+                        "empty"
+                    );
+                }
+
+                button.onclick = () => {
+
+                    const empty =
+                        board.indexOf(0);
+
+                    const r1 =
+                        Math.floor(
+                            index / 4
+                        );
+
+                    const c1 =
+                        index % 4;
+
+                    const r2 =
+                        Math.floor(
+                            empty / 4
+                        );
+
+                    const c2 =
+                        empty % 4;
+
+                    if (
+                        Math.abs(r1-r2) +
+                        Math.abs(c1-c2)
+                        !== 1
+                    ) {
+                        return;
+                    }
+
+                    [
+                        board[index],
+                        board[empty]
+                    ] =
+                    [
+                        board[empty],
+                        board[index]
+                    ];
+
+                    render();
+
+                    if (
+                        board.every(
+                            (v,i) =>
+                                v ===
+                                (
+                                    i === 15
+                                    ? 0
+                                    : i + 1
+                                )
+                        )
+                    ) {
+
+                        status.textContent =
+                            "🎉 Solved!";
+
+                        gameWon();
+                    }
+                };
+
+                grid.appendChild(
+                    button
+                );
+            }
+        );
+    }
+
+    function shuffle() {
+
+        for (
+            let i = 0;
+            i < 150;
+            i++
+        ) {
+
             const empty =
                 board.indexOf(0);
 
             const row =
-                Math.floor(empty / 4);
+                Math.floor(
+                    empty / 4
+                );
 
             const col =
                 empty % 4;
 
-            const possible = [];
+            const moves = [];
 
-            if (row > 0) possible.push(empty - 4);
-            if (row < 3) possible.push(empty + 4);
-            if (col > 0) possible.push(empty - 1);
-            if (col < 3) possible.push(empty + 1);
+            if (row > 0)
+                moves.push(empty - 4);
 
-            const index =
-                possible[
+            if (row < 3)
+                moves.push(empty + 4);
+
+            if (col > 0)
+                moves.push(empty - 1);
+
+            if (col < 3)
+                moves.push(empty + 1);
+
+            const move =
+                moves[
                     Math.floor(
                         Math.random() *
-                        possible.length
+                        moves.length
                     )
                 ];
 
-            [board[index], board[empty]] =
-                [board[empty], board[index]];
+            [
+                board[empty],
+                board[move]
+            ] =
+            [
+                board[move],
+                board[empty]
+            ];
         }
 
         status.textContent =
@@ -1576,133 +1875,195 @@ function fifteen() {
     }
 
     document
-        .getElementById("fifteenNew")
-        .addEventListener("click", shuffleBoard);
+        .getElementById(
+            "fifteenShuffle"
+        )
+        .onclick = shuffle;
 
-    shuffleBoard();
+    shuffle();
 }
 
 /* =========================================================
-   8. LIGHTS OUT
+   LIGHTS OUT
    ========================================================= */
 
 function lightsOut() {
-    let board = Array(25)
-        .fill(false);
+
+    let lights =
+        Array(25).fill(false);
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Lights Out</h2>
-            <p>Turn every light off.</p>
 
-            <div id="lightsGrid"
-                 class="lights-grid"></div>
+            <p>
+                Turn every light off.
+            </p>
 
-            <div id="lightsStatus"
-                 class="result">
-                Lights remaining: 0
+            <div
+                id="lightsGrid"
+                class="lights-grid">
             </div>
 
-            <button id="lightsNew"
-                    class="game-btn">
+            <div
+                id="lightsStatus"
+                class="result">
+            </div>
+
+            <button
+                id="lightsNew"
+                class="game-btn">
                 New Puzzle
             </button>
+
         </div>
+
     `;
 
     const grid =
-        document.getElementById("lightsGrid");
+        document.getElementById(
+            "lightsGrid"
+        );
 
     const status =
-        document.getElementById("lightsStatus");
+        document.getElementById(
+            "lightsStatus"
+        );
 
     function toggle(index) {
+
         const row =
             Math.floor(index / 5);
 
         const col =
             index % 5;
 
-        const positions = [
-            [row, col],
-            [row - 1, col],
-            [row + 1, col],
-            [row, col - 1],
-            [row, col + 1]
+        const cells = [
+            [row,col],
+            [row-1,col],
+            [row+1,col],
+            [row,col-1],
+            [row,col+1]
         ];
 
-        positions.forEach(([r, c]) => {
-            if (
-                r >= 0 &&
-                r < 5 &&
-                c >= 0 &&
-                c < 5
-            ) {
-                board[r * 5 + c] =
-                    !board[r * 5 + c];
+        cells.forEach(
+            ([r,c]) => {
+
+                if (
+                    r >= 0 &&
+                    r < 5 &&
+                    c >= 0 &&
+                    c < 5
+                ) {
+
+                    const i =
+                        r * 5 + c;
+
+                    lights[i] =
+                        !lights[i];
+                }
+
             }
-        });
+        );
     }
 
     function render() {
+
         grid.innerHTML = "";
 
-        board.forEach((on, index) => {
-            const button =
-                document.createElement("button");
+        lights.forEach(
+            (on,index) => {
 
-            button.className =
-                `light-cell ${on ? "on" : ""}`;
+                const button =
+                    document.createElement(
+                        "button"
+                    );
 
-            button.addEventListener("click", () => {
-                toggle(index);
-                render();
+                button.type = "button";
 
-                const remaining =
-                    board.filter(Boolean).length;
+                button.className =
+                    "light-cell";
 
-                status.textContent =
-                    `Lights remaining: ${remaining}`;
-
-                if (remaining === 0) {
-                    status.textContent =
-                        "🎉 All lights are off!";
-
-                    recordWin();
+                if (on) {
+                    button.classList.add(
+                        "on"
+                    );
                 }
-            });
 
-            grid.appendChild(button);
-        });
+                button.onclick = () => {
+
+                    toggle(index);
+
+                    render();
+
+                    const remaining =
+                        lights.filter(
+                            Boolean
+                        ).length;
+
+                    status.textContent =
+                        `Lights remaining: ${remaining}`;
+
+                    if (
+                        remaining === 0
+                    ) {
+
+                        status.textContent =
+                            "🎉 All lights are off!";
+
+                        gameWon();
+                    }
+                };
+
+                grid.appendChild(
+                    button
+                );
+            }
+        );
     }
 
     function newPuzzle() {
-        board = Array(25).fill(false);
 
-        for (let i = 0; i < 12; i++) {
+        lights =
+            Array(25).fill(false);
+
+        for (
+            let i = 0;
+            i < 12;
+            i++
+        ) {
+
             toggle(
-                Math.floor(Math.random() * 25)
+                Math.floor(
+                    Math.random() * 25
+                )
             );
         }
 
-        status.textContent =
-            `Lights remaining: ${board.filter(Boolean).length}`;
-
         render();
+
+        status.textContent =
+            "Turn every light off.";
     }
 
     document
-        .getElementById("lightsNew")
-        .addEventListener("click", newPuzzle);
+        .getElementById(
+            "lightsNew"
+        )
+        .onclick =
+        newPuzzle;
 
     newPuzzle();
 }
 
 /* =========================================================
-   9. STROOP FOCUS
+   STROOP
    ========================================================= */
 
 function stroop() {
+
     const colors = [
         "RED",
         "BLUE",
@@ -1714,39 +2075,61 @@ function stroop() {
     let question = 0;
 
     gameArea.innerHTML = `
-        <div class="game-intro">
-            <h2>Stroop Focus</h2>
-            <p>Choose the color of the text, not the word.</p>
 
-            <div id="stroopWord"
-                 style="font-size:48px;font-weight:900;margin:30px;">
+        <div class="game-intro">
+
+            <h2>Stroop Focus</h2>
+
+            <p>
+                Choose the COLOR, not the word.
+            </p>
+
+            <div
+                id="stroopWord"
+                style="
+                font-size:48px;
+                font-weight:900;
+                margin:30px;">
             </div>
 
-            <div id="stroopButtons"
-                 class="button-grid"></div>
+            <div
+                id="stroopButtons"
+                class="button-grid">
+            </div>
 
-            <div id="stroopStatus"
-                 class="result">
+            <div
+                id="stroopStatus"
+                class="result">
                 Score: 0 / 10
             </div>
+
         </div>
+
     `;
 
     const word =
-        document.getElementById("stroopWord");
+        document.getElementById(
+            "stroopWord"
+        );
 
     const buttons =
-        document.getElementById("stroopButtons");
+        document.getElementById(
+            "stroopButtons"
+        );
 
     const status =
-        document.getElementById("stroopStatus");
+        document.getElementById(
+            "stroopStatus"
+        );
 
     function next() {
+
         if (question >= 10) {
-            recordWin();
+
+            gameWon();
 
             status.textContent =
-                `🎉 Finished! Score: ${score}/10`;
+                `🎉 Finished! ${score}/10`;
 
             return;
         }
@@ -1755,180 +2138,339 @@ function stroop() {
 
         const text =
             colors[
-                Math.floor(Math.random() * colors.length)
+                Math.floor(
+                    Math.random() *
+                    colors.length
+                )
             ];
 
-        const actualColor =
+        const color =
             colors[
-                Math.floor(Math.random() * colors.length)
+                Math.floor(
+                    Math.random() *
+                    colors.length
+                )
             ];
 
-        word.textContent = text;
-        word.style.color = actualColor.toLowerCase();
+        word.textContent =
+            text;
+
+        word.style.color =
+            color.toLowerCase();
 
         buttons.innerHTML = "";
 
-        colors.forEach(color => {
-            const button =
-                document.createElement("button");
+        colors.forEach(
+            value => {
 
-            button.className = "game-btn";
-            button.textContent = color;
+                const button =
+                    document.createElement(
+                        "button"
+                    );
 
-            button.addEventListener("click", () => {
-                if (color === actualColor) {
-                    score++;
-                }
+                button.className =
+                    "game-btn";
 
-                status.textContent =
-                    `Score: ${score} / 10`;
+                button.type =
+                    "button";
 
-                next();
-            });
+                button.textContent =
+                    value;
 
-            buttons.appendChild(button);
-        });
+                button.onclick = () => {
+
+                    if (
+                        value === color
+                    ) {
+                        score++;
+                    }
+
+                    status.textContent =
+                        `Score: ${score}/10`;
+
+                    next();
+                };
+
+                buttons.appendChild(
+                    button
+                );
+            }
+        );
     }
 
     next();
 }
 
 /* =========================================================
-   10. PATTERN CHALLENGE
+   PATTERN
    ========================================================= */
 
 function pattern() {
-    const sequence =
-        Array.from(
-            { length: 4 },
-            () => Math.floor(Math.random() * 4)
-        );
+
+    let pattern =
+        [];
+
+    let player =
+        [];
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Pattern Challenge</h2>
-            <p>Remember the highlighted pattern.</p>
 
-            <div id="patternGrid"
-                 class="pattern-grid"></div>
+            <p>
+                Remember the pattern.
+            </p>
 
-            <div id="patternStatus"
-                 class="result">
-                Watch...
+            <div
+                id="patternGrid"
+                class="pattern-grid">
             </div>
 
-            <button id="patternStart"
-                    class="game-btn">
+            <div
+                id="patternStatus"
+                class="result">
+                Press Start
+            </div>
+
+            <button
+                id="patternStart"
+                class="game-btn">
                 Start
             </button>
+
         </div>
+
     `;
 
     const grid =
-        document.getElementById("patternGrid");
+        document.getElementById(
+            "patternGrid"
+        );
 
     const status =
-        document.getElementById("patternStatus");
+        document.getElementById(
+            "patternStatus"
+        );
 
     const start =
-        document.getElementById("patternStart");
+        document.getElementById(
+            "patternStart"
+        );
 
     const cells = [];
 
-    for (let i = 0; i < 4; i++) {
-        const cell =
-            document.createElement("button");
+    for (
+        let i = 0;
+        i < 4;
+        i++
+    ) {
 
-        cell.className = "pattern-cell";
+        const cell =
+            document.createElement(
+                "button"
+            );
+
+        cell.className =
+            "pattern-cell";
+
+        cell.onclick = () => {
+
+            if (
+                !start.disabled
+            ) {
+                return;
+            }
+
+            player.push(i);
+
+            if (
+                player[
+                    player.length - 1
+                ] !==
+                pattern[
+                    player.length - 1
+                ]
+            ) {
+
+                status.textContent =
+                    "❌ Wrong pattern.";
+
+                start.disabled =
+                    false;
+
+                return;
+            }
+
+            if (
+                player.length ===
+                pattern.length
+            ) {
+
+                gameWon();
+
+                status.textContent =
+                    "🎉 Correct pattern!";
+
+                start.disabled =
+                    false;
+            }
+        };
 
         cells.push(cell);
-        grid.appendChild(cell);
+
+        grid.appendChild(
+            cell
+        );
     }
 
-    start.addEventListener("click", () => {
-        start.disabled = true;
+    start.onclick = () => {
 
-        sequence.forEach((index, position) => {
-            safeTimeout(() => {
-                cells[index].classList.add("active");
+        pattern = [
+            Math.floor(
+                Math.random() * 4
+            ),
+            Math.floor(
+                Math.random() * 4
+            ),
+            Math.floor(
+                Math.random() * 4
+            ),
+            Math.floor(
+                Math.random() * 4
+            )
+        ];
 
-                safeTimeout(() => {
-                    cells[index].classList.remove("active");
-                }, 350);
-            }, position * 500);
-        });
+        player = [];
 
-        safeTimeout(() => {
+        start.disabled =
+            true;
+
+        pattern.forEach(
+            (index,position) => {
+
+                timeout(() => {
+
+                    cells[index]
+                        .classList.add(
+                            "active"
+                        );
+
+                    timeout(() => {
+
+                        cells[index]
+                            .classList.remove(
+                                "active"
+                            );
+
+                    },350);
+
+                },position * 500);
+            }
+        );
+
+        timeout(() => {
+
             status.textContent =
-                "Pattern complete!";
+                "Your turn!";
 
-            start.disabled = false;
-        }, sequence.length * 500 + 500);
-    });
+        },pattern.length * 500);
+    };
 }
 
 /* =========================================================
-   11. ODD ONE OUT
+   ODD ONE OUT
    ========================================================= */
 
 function oddOneOut() {
-    const symbols = [
-        "◆", "◆", "◆",
-        "◆", "◆", "◇",
-        "◆", "◆", "◆"
-    ];
+
+    const odd =
+        Math.floor(
+            Math.random() * 9
+        );
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Odd One Out</h2>
-            <p>Find the different symbol.</p>
 
-            <div id="oddGrid"
-                 class="odd-grid"></div>
+            <p>
+                Find the different symbol.
+            </p>
 
-            <div id="oddStatus"
-                 class="result">
-                Find it!
+            <div
+                id="oddGrid"
+                class="odd-grid">
             </div>
+
+            <div
+                id="oddStatus"
+                class="result">
+            </div>
+
         </div>
+
     `;
 
     const grid =
-        document.getElementById("oddGrid");
+        document.getElementById(
+            "oddGrid"
+        );
 
     const status =
-        document.getElementById("oddStatus");
+        document.getElementById(
+            "oddStatus"
+        );
 
-    const correct = 5;
+    for (
+        let i = 0;
+        i < 9;
+        i++
+    ) {
 
-    symbols.forEach((symbol, index) => {
         const button =
-            document.createElement("button");
+            document.createElement(
+                "button"
+            );
 
-        button.className = "odd-cell";
-        button.textContent = symbol;
+        button.className =
+            "odd-cell";
 
-        button.addEventListener("click", () => {
-            if (index === correct) {
+        button.textContent =
+            i === odd
+                ? "◇"
+                : "◆";
+
+        button.onclick = () => {
+
+            if (i === odd) {
+
                 status.textContent =
                     "🎉 Correct!";
 
-                recordWin();
+                gameWon();
+
             } else {
+
                 status.textContent =
                     "❌ Try again.";
             }
-        });
+        };
 
-        grid.appendChild(button);
-    });
+        grid.appendChild(
+            button
+        );
+    }
 }
 
 /* =========================================================
-   12. WORD SCRAMBLE
+   WORD SCRAMBLE
    ========================================================= */
 
 function scramble() {
+
     const words = [
         "planet",
         "rocket",
@@ -1936,151 +2478,207 @@ function scramble() {
         "library",
         "computer",
         "galaxy",
-        "adventure",
-        "keyboard",
         "puzzle",
-        "elephant"
+        "adventure"
     ];
 
     const answer =
-        words[Math.floor(Math.random() * words.length)];
+        words[
+            Math.floor(
+                Math.random() *
+                words.length
+            )
+        ];
 
     const scrambled =
         answer
             .split("")
-            .sort(() => Math.random() - 0.5)
+            .sort(
+                () => Math.random() - 0.5
+            )
             .join("");
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Word Scramble</h2>
 
-            <div style="
+            <div
+                style="
                 font-size:42px;
                 font-weight:900;
-                margin:25px;
-                letter-spacing:5px;
-            ">
+                margin:25px;">
                 ${scrambled}
             </div>
 
             <input
                 id="scrambleInput"
                 class="game-input"
-                placeholder="Unscramble the word"
-                autocomplete="off"
-            >
+                placeholder="Your answer">
 
-            <button id="scrambleCheck"
-                    class="game-btn">
+            <button
+                id="scrambleCheck"
+                class="game-btn">
                 Check
             </button>
 
-            <div id="scrambleStatus"
-                 class="result">
+            <div
+                id="scrambleStatus"
+                class="result">
             </div>
+
         </div>
+
     `;
 
     const input =
-        document.getElementById("scrambleInput");
+        document.getElementById(
+            "scrambleInput"
+        );
 
-    const check =
-        document.getElementById("scrambleCheck");
+    const button =
+        document.getElementById(
+            "scrambleCheck"
+        );
 
     const status =
-        document.getElementById("scrambleStatus");
+        document.getElementById(
+            "scrambleStatus"
+        );
 
-    function submit() {
+    function check() {
+
         if (
             input.value
                 .trim()
-                .toLowerCase() === answer
+                .toLowerCase() ===
+            answer
         ) {
+
             status.textContent =
                 "🎉 Correct!";
 
-            recordWin();
+            gameWon();
+
         } else {
+
             status.textContent =
                 "❌ Try again.";
         }
     }
 
-    check.addEventListener("click", submit);
+    button.onclick =
+        check;
 
-    input.addEventListener("keydown", event => {
-        if (event.key === "Enter") {
-            submit();
-        }
-    });
+    input.onkeydown =
+        event => {
+
+            if (
+                event.key === "Enter"
+            ) {
+                check();
+            }
+
+        };
+
+    input.focus();
 }
 
 /* =========================================================
-   13. AIM TRAINER
+   AIM TRAINER
    ========================================================= */
 
 function aimTrainer() {
+
     let score = 0;
     let remaining = 10;
 
     gameArea.innerHTML = `
-        <div class="game-intro">
-            <h2>Aim Trainer</h2>
-            <p>Click the targets as quickly as possible.</p>
 
-            <div id="aimArea"
-                 style="
-                 position:relative;
-                 height:350px;
-                 border-radius:20px;
-                 overflow:hidden;
-                 background:rgba(255,255,255,.05);
-                 ">
+        <div class="game-intro">
+
+            <h2>Aim Trainer</h2>
+
+            <p>
+                Click the targets.
+            </p>
+
+            <div
+                id="aimArea"
+                style="
+                position:relative;
+                height:350px;
+                overflow:hidden;
+                border-radius:20px;
+                background:rgba(255,255,255,.05);">
             </div>
 
-            <div id="aimStatus"
-                 class="result">
+            <div
+                id="aimStatus"
+                class="result">
                 Targets: 10
             </div>
+
         </div>
+
     `;
 
     const area =
-        document.getElementById("aimArea");
+        document.getElementById(
+            "aimArea"
+        );
 
     const status =
-        document.getElementById("aimStatus");
+        document.getElementById(
+            "aimStatus"
+        );
 
     function spawn() {
+
+        area.innerHTML = "";
+
         if (remaining <= 0) {
-            recordWin();
 
             status.textContent =
                 `🎉 Score: ${score}/10`;
 
+            gameWon();
+
             return;
         }
 
-        area.innerHTML = "";
-
         const target =
-            document.createElement("button");
+            document.createElement(
+                "button"
+            );
 
-        target.textContent = "●";
+        target.type =
+            "button";
 
-        target.style.position = "absolute";
-        target.style.width = "55px";
-        target.style.height = "55px";
-        target.style.borderRadius = "50%";
-        target.style.border = "0";
-        target.style.cursor = "pointer";
+        target.textContent =
+            "●";
+
+        target.style.position =
+            "absolute";
+
+        target.style.width =
+            "55px";
+
+        target.style.height =
+            "55px";
+
+        target.style.borderRadius =
+            "50%";
+
         target.style.left =
-            `${Math.random() * 85}%`;
-        target.style.top =
-            `${Math.random() * 75}%`;
+            `${Math.random()*85}%`;
 
-        target.addEventListener("click", () => {
+        target.style.top =
+            `${Math.random()*75}%`;
+
+        target.onclick = () => {
+
             score++;
             remaining--;
 
@@ -2088,36 +2686,47 @@ function aimTrainer() {
                 `Targets remaining: ${remaining}`;
 
             spawn();
-        });
+        };
 
-        area.appendChild(target);
+        area.appendChild(
+            target
+        );
     }
 
     spawn();
 }
 
 /* =========================================================
-   14. TYPING SPEED
+   TYPING
    ========================================================= */
 
 function typing() {
+
     const texts = [
         "The quick brown fox jumps over the lazy dog.",
         "Learning new things makes the brain stronger.",
         "Space exploration teaches us about our universe.",
-        "Practice helps people become faster and more accurate."
+        "Practice makes people faster and more accurate."
     ];
 
     const text =
-        texts[Math.floor(Math.random() * texts.length)];
+        texts[
+            Math.floor(
+                Math.random() *
+                texts.length
+            )
+        ];
 
-    const startTime = performance.now();
+    const startTime =
+        performance.now();
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Typing Speed</h2>
 
-            <p id="typingText">
+            <p>
                 ${text}
             </p>
 
@@ -2125,199 +2734,276 @@ function typing() {
                 id="typingInput"
                 class="game-input"
                 rows="5"
-                placeholder="Start typing..."
-            ></textarea>
+                placeholder="Start typing...">
+            </textarea>
 
-            <div id="typingStatus"
-                 class="result">
+            <div
+                id="typingStatus"
+                class="result">
                 Start typing.
             </div>
+
         </div>
+
     `;
 
     const input =
-        document.getElementById("typingInput");
+        document.getElementById(
+            "typingInput"
+        );
 
     const status =
-        document.getElementById("typingStatus");
+        document.getElementById(
+            "typingStatus"
+        );
 
     input.focus();
 
-    input.addEventListener("input", () => {
-        const typed = input.value;
+    input.oninput = () => {
 
-        if (text.startsWith(typed)) {
-            input.style.borderColor = "";
+        const value =
+            input.value;
 
-            if (typed === text) {
-                const seconds =
-                    (performance.now() - startTime) / 1000;
+        if (
+            !text.startsWith(value)
+        ) {
 
-                const words =
-                    text.trim().split(/\s+/).length;
-
-                const wpm =
-                    Math.round(
-                        (words / seconds) * 60
-                    );
-
-                if (
-                    stats.bestTyping === null ||
-                    stats.bestTyping === undefined ||
-                    wpm > stats.bestTyping
-                ) {
-                    stats.bestTyping = wpm;
-                }
-
-                recordWin();
-                saveStats();
-
-                status.textContent =
-                    `🎉 Complete! ${wpm} WPM`;
-            }
-        } else {
             status.textContent =
                 "⚠️ Check your typing.";
+
+            return;
         }
-    });
+
+        if (
+            value === text
+        ) {
+
+            const seconds =
+                (
+                    performance.now() -
+                    startTime
+                ) / 1000;
+
+            const words =
+                text.split(/\s+/).length;
+
+            const wpm =
+                Math.round(
+                    words /
+                    seconds *
+                    60
+                );
+
+            if (
+                stats.bestTyping === null ||
+                wpm > stats.bestTyping
+            ) {
+                stats.bestTyping =
+                    wpm;
+            }
+
+            saveStats();
+
+            status.textContent =
+                `🎉 Complete! ${wpm} WPM`;
+
+            gameWon();
+        }
+    };
 }
 
 /* =========================================================
-   15. FOCUS TEST
+   FOCUS TEST
    ========================================================= */
 
 function focusTest() {
-    let active = false;
-    let startTime = 0;
+
+    let waiting = false;
+    let ready = false;
+    let start = 0;
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Focus Test</h2>
+
             <p>
-                Wait for the screen to change,
-                then click immediately.
+                Click when the button says
+                CLICK NOW.
             </p>
 
-            <button id="focusButton"
-                    class="game-btn">
+            <button
+                id="focusButton"
+                class="game-btn">
                 Start
             </button>
 
-            <div id="focusStatus"
-                 class="result">
+            <div
+                id="focusStatus"
+                class="result">
             </div>
+
         </div>
+
     `;
 
     const button =
-        document.getElementById("focusButton");
+        document.getElementById(
+            "focusButton"
+        );
 
     const status =
-        document.getElementById("focusStatus");
+        document.getElementById(
+            "focusStatus"
+        );
 
-    button.addEventListener("click", () => {
-        if (!active) {
-            active = true;
+    button.onclick = () => {
 
-            button.textContent = "WAIT...";
+        if (!waiting && !ready) {
 
-            safeTimeout(() => {
-                startTime = performance.now();
+            waiting = true;
+
+            button.textContent =
+                "WAIT...";
+
+            timeout(() => {
+
+                waiting = false;
+                ready = true;
+
+                start =
+                    performance.now();
 
                 button.textContent =
                     "CLICK NOW!";
 
-                button.classList.add("ready");
-            }, 1500 + Math.random() * 2500);
+                button.classList.add(
+                    "ready"
+                );
+
+            },1000 + Math.random()*2500);
 
             return;
         }
 
-        if (!button.classList.contains("ready")) {
-            clearAllTimers();
+        if (waiting) {
+
+            clearTimers();
+
+            waiting = false;
+
+            button.textContent =
+                "Start";
 
             status.textContent =
-                "Too early!";
-
-            active = false;
-            button.textContent = "Start";
+                "❌ Too early!";
 
             return;
         }
 
-        const time =
-            Math.round(
-                performance.now() - startTime
+        if (ready) {
+
+            const time =
+                Math.round(
+                    performance.now() -
+                    start
+                );
+
+            ready = false;
+
+            button.textContent =
+                "Start";
+
+            button.classList.remove(
+                "ready"
             );
 
-        status.textContent =
-            `Reaction: ${time} ms`;
+            status.textContent =
+                `⚡ ${time} ms`;
 
-        recordWin();
-
-        active = false;
-        button.classList.remove("ready");
-        button.textContent = "Start";
-    });
+            gameWon();
+        }
+    };
 }
 
 /* =========================================================
-   16. QUICK MATH
+   QUICK MATH
    ========================================================= */
 
 function quickMath() {
+
     let score = 0;
     let question = 0;
     let answer = 0;
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Quick Math</h2>
 
-            <div id="mathQuestion"
-                 style="font-size:40px;font-weight:900;">
+            <div
+                id="mathQuestion"
+                style="
+                font-size:40px;
+                font-weight:900;
+                margin:20px;">
             </div>
 
             <input
                 id="mathInput"
                 class="game-input"
                 type="number"
-                placeholder="Answer"
-            >
+                placeholder="Answer">
 
-            <button id="mathCheck"
-                    class="game-btn">
+            <button
+                id="mathCheck"
+                class="game-btn">
                 Check
             </button>
 
-            <div id="mathStatus"
-                 class="result">
+            <div
+                id="mathStatus"
+                class="result">
                 Score: 0 / 10
             </div>
+
         </div>
+
     `;
 
-    const questionEl =
-        document.getElementById("mathQuestion");
+    const questionBox =
+        document.getElementById(
+            "mathQuestion"
+        );
 
     const input =
-        document.getElementById("mathInput");
+        document.getElementById(
+            "mathInput"
+        );
 
     const check =
-        document.getElementById("mathCheck");
+        document.getElementById(
+            "mathCheck"
+        );
 
     const status =
-        document.getElementById("mathStatus");
+        document.getElementById(
+            "mathStatus"
+        );
 
-    function nextQuestion() {
+    function next() {
+
         if (question >= 10) {
-            recordWin();
 
             status.textContent =
-                `🎉 Finished! Score: ${score}/10`;
+                `🎉 Finished! ${score}/10`;
 
             check.disabled = true;
             input.disabled = true;
+
+            gameWon();
 
             return;
         }
@@ -2325,123 +3011,162 @@ function quickMath() {
         question++;
 
         const a =
-            Math.floor(Math.random() * 20) + 1;
+            Math.floor(
+                Math.random()*20
+            ) + 1;
 
         const b =
-            Math.floor(Math.random() * 20) + 1;
+            Math.floor(
+                Math.random()*20
+            ) + 1;
 
-        answer = a + b;
+        answer =
+            a + b;
 
-        questionEl.textContent =
+        questionBox.textContent =
             `${a} + ${b} = ?`;
 
         input.value = "";
-        input.focus();
 
-        status.textContent =
-            `Score: ${score} / 10`;
+        input.focus();
     }
 
     function submit() {
-        if (Number(input.value) === answer) {
+
+        if (
+            Number(input.value) ===
+            answer
+        ) {
             score++;
         }
 
-        nextQuestion();
+        status.textContent =
+            `Score: ${score}/10`;
+
+        next();
     }
 
-    check.addEventListener("click", submit);
+    check.onclick =
+        submit;
 
-    input.addEventListener("keydown", event => {
-        if (event.key === "Enter") {
-            submit();
-        }
-    });
+    input.onkeydown =
+        event => {
 
-    nextQuestion();
+            if (
+                event.key === "Enter"
+            ) {
+                submit();
+            }
+
+        };
+
+    next();
 }
 
 /* =========================================================
-   17. ANAGRAM
+   ANAGRAM
    ========================================================= */
 
 function anagram() {
+
     const letters =
         "PLANET";
 
-    const possibleWords = [
+    const validWords = [
         "PLAN",
         "PANEL",
         "PLANE",
         "PLANET"
     ];
 
-    const found = new Set();
+    const found =
+        new Set();
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Anagram Challenge</h2>
 
             <p>
-                Make as many words as possible
-                from these letters:
+                Make words from:
             </p>
 
-            <div style="
+            <div
+                style="
                 font-size:42px;
                 font-weight:900;
                 letter-spacing:8px;
-                margin:25px;
-            ">
+                margin:20px;">
                 ${letters}
             </div>
 
             <input
                 id="anagramInput"
                 class="game-input"
-                placeholder="Enter a word"
-                autocomplete="off"
-            >
+                placeholder="Enter a word">
 
-            <button id="anagramAdd"
-                    class="game-btn">
+            <button
+                id="anagramAdd"
+                class="game-btn">
                 Add Word
             </button>
 
-            <div id="anagramList"
-                 class="result">
+            <div
+                id="anagramStatus"
+                class="result">
                 Words found: 0
             </div>
-        `;
+
+        </div>
+
+    `;
 
     const input =
-        document.getElementById("anagramInput");
+        document.getElementById(
+            "anagramInput"
+        );
 
     const button =
-        document.getElementById("anagramAdd");
+        document.getElementById(
+            "anagramAdd"
+        );
 
-    const list =
-        document.getElementById("anagramList");
+    const status =
+        document.getElementById(
+            "anagramStatus"
+        );
 
-    function canMakeWord(word) {
-        const available =
-            letters.toLowerCase().split("");
+    function possible(word) {
 
-        for (const char of word.toLowerCase()) {
+        const chars =
+            letters
+                .toLowerCase()
+                .split("");
+
+        for (
+            const char of word
+                .toLowerCase()
+        ) {
+
             const index =
-                available.indexOf(char);
+                chars.indexOf(char);
 
             if (index === -1) {
                 return false;
             }
 
-            available.splice(index, 1);
+            chars.splice(
+                index,
+                1
+            );
         }
 
         return true;
     }
 
-    function submit() {
+    function addWord() {
+
         const word =
             input.value
                 .trim()
@@ -2449,54 +3174,68 @@ function anagram() {
 
         if (
             word.length < 2 ||
-            !canMakeWord(word)
+            !possible(word)
         ) {
-            list.textContent =
-                "❌ That word cannot be made from the letters.";
+
+            status.textContent =
+                "❌ That word cannot be made.";
+
             return;
         }
 
-        if (found.has(word)) {
-            list.textContent =
-                "⚠️ You already found that word.";
+        if (
+            found.has(word)
+        ) {
+
+            status.textContent =
+                "⚠️ Already found.";
+
             return;
         }
 
         found.add(word);
 
-        list.textContent =
-            `Words found: ${found.size} — ${[
+        status.textContent =
+            `Words found: ${[
                 ...found
             ].join(", ")}`;
 
         if (
-            possibleWords.every(
-                word => found.has(word.toLowerCase())
+            validWords.every(
+                x =>
+                    found.has(
+                        x.toLowerCase()
+                    )
             )
         ) {
-            recordWin();
+
+            gameWon();
         }
 
         input.value = "";
         input.focus();
     }
 
-    button.addEventListener("click", submit);
+    button.onclick =
+        addWord;
 
-    input.addEventListener("keydown", event => {
-        if (event.key === "Enter") {
-            submit();
-        }
-    });
+    input.onkeydown =
+        event => {
+
+            if (
+                event.key === "Enter"
+            ) {
+                addWord();
+            }
+
+        };
 }
 
 /* =========================================================
-   18. WORD SEARCH
-   FULL 8-DIRECTION GENERATOR
+   WORD SEARCH
    ========================================================= */
 
 function wordSearch() {
-    const SIZE = 10;
 
     const words = [
         "BRAIN",
@@ -2506,159 +3245,179 @@ function wordSearch() {
         "PUZZLE"
     ];
 
+    const size = 10;
+
     let grid = [];
 
     gameArea.innerHTML = `
+
         <div class="game-intro">
+
             <h2>Word Search</h2>
 
             <p>
-                Find the hidden words horizontally,
-                vertically and diagonally.
+                Find the hidden words.
             </p>
 
-            <div id="wordSearchGrid"
-                 class="word-search-grid"></div>
-
-            <div id="wordSearchWords"
-                 class="result">
+            <div
+                id="wordSearchGrid"
+                class="word-search-grid">
             </div>
 
-            <div id="wordSearchStatus"
-                 class="result">
-                Find all the words.
+            <div
+                id="wordSearchWords"
+                class="result">
+                ${words.join(" • ")}
             </div>
 
-            <button id="wordSearchNew"
-                    class="game-btn">
+            <button
+                id="wordSearchNew"
+                class="game-btn">
                 New Puzzle
             </button>
+
         </div>
+
     `;
 
-    const gridEl =
-        document.getElementById("wordSearchGrid");
-
-    const wordsEl =
-        document.getElementById("wordSearchWords");
-
-    const status =
-        document.getElementById("wordSearchStatus");
-
-    const newBtn =
-        document.getElementById("wordSearchNew");
-
-    const directions = [
-        [0, 1],
-        [0, -1],
-        [1, 0],
-        [-1, 0],
-        [1, 1],
-        [1, -1],
-        [-1, 1],
-        [-1, -1]
-    ];
-
-    function createGrid() {
-        return Array.from(
-            { length: SIZE },
-            () =>
-                Array(SIZE).fill("")
+    const gridBox =
+        document.getElementById(
+            "wordSearchGrid"
         );
-    }
 
-    function canPlace(
-        word,
-        row,
-        col,
-        dr,
-        dc
-    ) {
-        for (let i = 0; i < word.length; i++) {
-            const r = row + dr * i;
-            const c = col + dc * i;
-
-            if (
-                r < 0 ||
-                r >= SIZE ||
-                c < 0 ||
-                c >= SIZE
-            ) {
-                return false;
-            }
-
-            if (
-                grid[r][c] &&
-                grid[r][c] !== word[i]
-            ) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    function placeWord(word) {
-        const shuffledDirections =
-            directions
-                .map(x => [...x])
-                .sort(() => Math.random() - 0.5);
-
-        for (let attempt = 0; attempt < 300; attempt++) {
-            const row =
-                Math.floor(Math.random() * SIZE);
-
-            const col =
-                Math.floor(Math.random() * SIZE);
-
-            const [dr, dc] =
-                shuffledDirections[
-                    Math.floor(
-                        Math.random() *
-                        shuffledDirections.length
-                    )
-                ];
-
-            if (
-                canPlace(
-                    word,
-                    row,
-                    col,
-                    dr,
-                    dc
-                )
-            ) {
-                for (
-                    let i = 0;
-                    i < word.length;
-                    i++
-                ) {
-                    grid[row + dr * i][
-                        col + dc * i
-                    ] = word[i];
-                }
-
-                return true;
-            }
-        }
-
-        return false;
-    }
+    const wordBox =
+        document.getElementById(
+            "wordSearchWords"
+        );
 
     function generate() {
-        grid = createGrid();
+
+        grid =
+            Array.from(
+                {length:size},
+                () =>
+                    Array(size).fill("")
+            );
 
         words.forEach(word => {
-            placeWord(word);
+
+            let placed = false;
+
+            for (
+                let attempt = 0;
+                attempt < 500 &&
+                !placed;
+                attempt++
+            ) {
+
+                const row =
+                    Math.floor(
+                        Math.random()*size
+                    );
+
+                const col =
+                    Math.floor(
+                        Math.random()*size
+                    );
+
+                const directions = [
+                    [0,1],
+                    [1,0],
+                    [1,1],
+                    [-1,1]
+                ];
+
+                const direction =
+                    directions[
+                        Math.floor(
+                            Math.random() *
+                            directions.length
+                        )
+                    ];
+
+                const dr =
+                    direction[0];
+
+                const dc =
+                    direction[1];
+
+                let possible =
+                    true;
+
+                for (
+                    let i=0;
+                    i<word.length;
+                    i++
+                ) {
+
+                    const r =
+                        row + dr*i;
+
+                    const c =
+                        col + dc*i;
+
+                    if (
+                        r<0 ||
+                        r>=size ||
+                        c<0 ||
+                        c>=size
+                    ) {
+
+                        possible = false;
+                        break;
+                    }
+
+                    if (
+                        grid[r][c] &&
+                        grid[r][c] !==
+                        word[i]
+                    ) {
+
+                        possible = false;
+                        break;
+                    }
+                }
+
+                if (!possible) {
+                    continue;
+                }
+
+                for (
+                    let i=0;
+                    i<word.length;
+                    i++
+                ) {
+
+                    grid[
+                        row+dr*i
+                    ][
+                        col+dc*i
+                    ] =
+                        word[i];
+                }
+
+                placed = true;
+            }
         });
 
         const alphabet =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-        for (let row = 0; row < SIZE; row++) {
-            for (let col = 0; col < SIZE; col++) {
-                if (!grid[row][col]) {
-                    grid[row][col] =
+        for (
+            let r=0;
+            r<size;
+            r++
+        ) {
+
+            for (
+                let c=0;
+                c<size;
+                c++
+            ) {
+
+                if (!grid[r][c]) {
+
+                    grid[r][c] =
                         alphabet[
                             Math.floor(
                                 Math.random() *
@@ -2671,235 +3430,211 @@ function wordSearch() {
     }
 
     function render() {
-        gridEl.innerHTML = "";
 
-        grid.forEach((row, r) => {
-            row.forEach((letter, c) => {
-                const cell =
-                    document.createElement("button");
+        gridBox.innerHTML = "";
 
-                cell.className =
-                    "word-search-cell";
+        grid.forEach(
+            row => {
 
-                cell.textContent = letter;
+                row.forEach(
+                    letter => {
 
-                cell.dataset.row = r;
-                cell.dataset.col = c;
+                        const cell =
+                            document.createElement(
+                                "button"
+                            );
 
-                cell.addEventListener("click", () => {
-                    cell.classList.toggle("selected");
+                        cell.type =
+                            "button";
 
-                    checkSelected();
-                });
+                        cell.className =
+                            "word-search-cell";
 
-                gridEl.appendChild(cell);
-            });
-        });
+                        cell.textContent =
+                            letter;
 
-        wordsEl.textContent =
-            `Words: ${words.join(" • ")}`;
-    }
+                        cell.onclick = () => {
 
-    function checkSelected() {
-        const selected =
-            [...gridEl.querySelectorAll(
-                ".word-search-cell.selected"
-            )];
+                            cell.classList.toggle(
+                                "selected"
+                            );
+                        };
 
-        if (selected.length < 2) return;
-
-        const letters =
-            selected
-                .map(cell => cell.textContent)
-                .join("");
-
-        const reverse =
-            letters
-                .split("")
-                .reverse()
-                .join("");
-
-        if (
-            words.includes(letters) ||
-            words.includes(reverse)
-        ) {
-            const foundWord =
-                words.includes(letters)
-                    ? letters
-                    : reverse;
-
-            selected.forEach(cell => {
-                cell.classList.add("found");
-                cell.classList.remove("selected");
-            });
-
-            wordsEl.textContent =
-                wordsEl.textContent
-                    .replace(
-                        foundWord,
-                        `✓ ${foundWord}`
-                    );
-
-            const found =
-                gridEl.querySelectorAll(
-                    ".word-search-cell.found"
+                        gridBox.appendChild(
+                            cell
+                        );
+                    }
                 );
-
-            if (found.length >= words.length * 2) {
-                status.textContent =
-                    "🎉 Puzzle complete!";
-
-                recordWin();
             }
-        }
-    }
-
-    function newPuzzle() {
-        generate();
-        render();
-
-        status.textContent =
-            "Find all the hidden words.";
-    }
-
-    newBtn.addEventListener("click", newPuzzle);
-
-    newPuzzle();
-}
-
-/* =========================================================
-   19. CHOICE REACTION
-   ========================================================= */
-
-function choiceReaction() {
-    let startTime = 0;
-    let active = false;
-    let finished = false;
-
-    gameArea.innerHTML = `
-        <div class="game-intro">
-            <h2>Choice Reaction</h2>
-
-            <p>
-                When the signal appears,
-                press the matching key:
-            </p>
-
-            <h3>
-                A &nbsp; S &nbsp; D &nbsp; F
-            </h3>
-
-            <div id="choiceSignal"
-                 style="
-                 font-size:70px;
-                 font-weight:900;
-                 margin:30px;
-                 ">
-                WAIT
-            </div>
-
-            <button id="choiceStart"
-                    class="game-btn">
-                Start
-            </button>
-
-            <div id="choiceStatus"
-                 class="result">
-            </div>
-        </div>
-    `;
-
-    const signal =
-        document.getElementById("choiceSignal");
-
-    const startBtn =
-        document.getElementById("choiceStart");
-
-    const status =
-        document.getElementById("choiceStatus");
-
-    const keys = ["A", "S", "D", "F"];
-
-    let expectedKey = "";
-
-    function cleanupKeyboard() {
-        document.removeEventListener(
-            "keydown",
-            handleKey
         );
     }
 
-    function handleKey(event) {
-        if (!active || finished) return;
+    document
+        .getElementById(
+            "wordSearchNew"
+        )
+        .onclick = () => {
+
+            generate();
+            render();
+
+            wordBox.textContent =
+                words.join(" • ");
+        };
+
+    generate();
+    render();
+}
+
+/* =========================================================
+   CHOICE REACTION
+   ========================================================= */
+
+function choiceReaction() {
+
+    let active = false;
+    let start = 0;
+    let expected = "";
+
+    const keys = [
+        "A",
+        "S",
+        "D",
+        "F"
+    ];
+
+    gameArea.innerHTML = `
+
+        <div class="game-intro">
+
+            <h2>Choice Reaction</h2>
+
+            <p>
+                When a letter appears,
+                press the matching key.
+            </p>
+
+            <div
+                style="
+                font-size:60px;
+                font-weight:900;
+                margin:25px;"
+                id="choiceSignal">
+                ?
+            </div>
+
+            <button
+                id="choiceStart"
+                class="game-btn">
+                Start
+            </button>
+
+            <div
+                id="choiceStatus"
+                class="result">
+            </div>
+
+        </div>
+
+    `;
+
+    const signal =
+        document.getElementById(
+            "choiceSignal"
+        );
+
+    const startButton =
+        document.getElementById(
+            "choiceStart"
+        );
+
+    const status =
+        document.getElementById(
+            "choiceStatus"
+        );
+
+    function keyHandler(event) {
+
+        if (!active) {
+            return;
+        }
 
         const key =
             event.key.toUpperCase();
 
-        if (!keys.includes(key)) return;
-
-        if (key !== expectedKey) {
-            status.textContent =
-                `❌ Wrong key. Expected ${expectedKey}.`;
-
-            active = false;
-            finished = true;
-
-            cleanupKeyboard();
-
-            startBtn.disabled = false;
-            startBtn.textContent = "Try Again";
-
+        if (!keys.includes(key)) {
             return;
         }
 
-        const reactionTime =
+        active = false;
+
+        const time =
             Math.round(
-                performance.now() - startTime
+                performance.now() -
+                start
             );
 
-        status.textContent =
-            `⚡ ${reactionTime} ms`;
-
-        recordWin();
-
         if (
-            stats.bestReaction === null ||
-            reactionTime < stats.bestReaction
+            key === expected
         ) {
-            stats.bestReaction = reactionTime;
+
+            status.textContent =
+                `🎉 ${time} ms`;
+
+            if (
+                stats.bestReaction === null ||
+                time < stats.bestReaction
+            ) {
+
+                stats.bestReaction =
+                    time;
+            }
+
+            gameWon();
+
+        } else {
+
+            status.textContent =
+                `❌ Wrong key. Expected ${expected}.`;
         }
 
-        saveStats();
-        updateStats();
+        startButton.disabled =
+            false;
 
-        active = false;
-        finished = true;
-
-        cleanupKeyboard();
-
-        startBtn.disabled = false;
-        startBtn.textContent = "Try Again";
+        startButton.textContent =
+            "Try Again";
     }
 
-    startBtn.addEventListener("click", () => {
-        cleanupCurrentGame();
+    document.addEventListener(
+        "keydown",
+        keyHandler
+    );
+
+    cleanupFunction = () => {
+
+        document.removeEventListener(
+            "keydown",
+            keyHandler
+        );
 
         active = false;
-        finished = false;
+    };
 
-        startBtn.disabled = true;
+    startButton.onclick = () => {
 
-        expectedKey =
-            keys[
-                Math.floor(
-                    Math.random() * keys.length
-                )
-            ];
+        clearTimers();
 
-        signal.textContent = "WAIT";
+        active = false;
 
-        safeTimeout(() => {
-            expectedKey =
+        startButton.disabled =
+            true;
+
+        signal.textContent =
+            "WAIT";
+
+        timeout(() => {
+
+            expected =
                 keys[
                     Math.floor(
                         Math.random() *
@@ -2908,22 +3643,14 @@ function choiceReaction() {
                 ];
 
             signal.textContent =
-                expectedKey;
+                expected;
 
-            startTime = performance.now();
+            start =
+                performance.now();
+
             active = true;
 
-            document.addEventListener(
-                "keydown",
-                handleKey
-            );
-        }, 1000 + Math.random() * 2500);
-    });
-
-    activeCleanup = () => {
-        active = false;
-        finished = true;
-        cleanupKeyboard();
+        },1000 + Math.random()*2500);
     };
 }
 
@@ -2932,3 +3659,9 @@ function choiceReaction() {
    ========================================================= */
 
 loadStats();
+
+console.log(
+    "Ultimate Brain Lab loaded successfully."
+);
+
+});
