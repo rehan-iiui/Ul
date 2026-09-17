@@ -1,1196 +1,482 @@
-/* =========================================================
-   ULTIMATE BRAIN LAB
-   STABLE BUTTON FIX
-   ========================================================= */
+const modal=document.getElementById("modal");
+const game=document.getElementById("game");
 
-document.addEventListener("DOMContentLoaded", () => {
+let timers=[];
+let played=Number(localStorage.getItem("brainPlayed")||0);
 
-"use strict";
-
-/* =========================================================
-   ELEMENTS
-   ========================================================= */
-
-const modal = document.getElementById("gameModal");
-const modalTitle = document.getElementById("modalTitle");
-const gameArea = document.getElementById("gameArea");
-const closeModal = document.getElementById("closeModal");
-
-if (!modal || !modalTitle || !gameArea) {
-    console.error("Ultimate Brain Lab: Required HTML elements missing.");
-    return;
-}
-
-/* =========================================================
-   STATE
-   ========================================================= */
-
-let timers = [];
-let intervals = [];
-let cleanupFunction = null;
-
-let stats = {
-    games: 0,
-    wins: 0,
-    bestReaction: null,
-    bestMemory: 0,
-    bestTyping: null
-};
-
-/* =========================================================
-   SAFE STORAGE
-   ========================================================= */
-
-function loadStats() {
-    try {
-        const saved = localStorage.getItem("ultimateBrainLabStats");
-
-        if (saved) {
-            const data = JSON.parse(saved);
-
-            if (data && typeof data === "object") {
-                stats = {
-                    ...stats,
-                    ...data
-                };
-            }
-        }
-    } catch (error) {
-        console.warn("Stats could not be loaded.");
-    }
-
-    updateStats();
-}
-
-function saveStats() {
-    try {
-        localStorage.setItem(
-            "ultimateBrainLabStats",
-            JSON.stringify(stats)
-        );
-    } catch (error) {
-        console.warn("Stats could not be saved.");
-    }
-}
-
-function updateStats() {
-
-    const games =
-        document.getElementById("gamesPlayed");
-
-    const wins =
-        document.getElementById("wins");
-
-    const reaction =
-        document.getElementById("bestReaction");
-
-    const memory =
-        document.getElementById("bestMemory");
-
-    if (games) {
-        games.textContent = stats.games;
-    }
-
-    if (wins) {
-        wins.textContent = stats.wins;
-    }
-
-    if (reaction) {
-        reaction.textContent =
-            stats.bestReaction === null
-                ? "--"
-                : `${stats.bestReaction} ms`;
-    }
-
-    if (memory) {
-        memory.textContent =
-            stats.bestMemory > 0
-                ? stats.bestMemory
-                : "--";
-    }
-}
-
-function gamePlayed() {
-    stats.games++;
-    saveStats();
-    updateStats();
-}
-
-function gameWon() {
-    stats.wins++;
-    saveStats();
-    updateStats();
-}
-
-/* =========================================================
-   TIMER CONTROL
-   ========================================================= */
-
-function timeout(fn, delay) {
-
-    const id = setTimeout(() => {
-
-        timers = timers.filter(
-            x => x !== id
-        );
-
-        fn();
-
-    }, delay);
-
-    timers.push(id);
-
-    return id;
-}
-
-function interval(fn, delay) {
-
-    const id = setInterval(fn, delay);
-
-    intervals.push(id);
-
-    return id;
-}
-
-function clearTimers() {
-
-    timers.forEach(id => {
-        clearTimeout(id);
-    });
-
-    intervals.forEach(id => {
-        clearInterval(id);
-    });
-
-    timers = [];
-    intervals = [];
-}
-
-function cleanupGame() {
-
+function openGame(title,html){
     clearTimers();
 
-    if (typeof cleanupFunction === "function") {
-
-        try {
-            cleanupFunction();
-        } catch (error) {
-            console.warn(
-                "Game cleanup error:",
-                error
-            );
-        }
-    }
-
-    cleanupFunction = null;
-}
-
-/* =========================================================
-   MODAL
-   ========================================================= */
-
-function openGame(title, gameFunction) {
-
-    cleanupGame();
-
-    modalTitle.textContent = title;
-
-    gameArea.innerHTML = "";
+    game.innerHTML=
+        `<h2>${title}</h2>
+         <div class="instructions">${html}</div>`;
 
     modal.classList.add("show");
-
-    gamePlayed();
-
-    try {
-        gameFunction();
-    } catch (error) {
-
-        console.error(
-            "Game error:",
-            error
-        );
-
-        gameArea.innerHTML = `
-            <div style="
-                text-align:center;
-                padding:40px;
-            ">
-                <h2>Game Error</h2>
-
-                <p>
-                    This game encountered an error.
-                </p>
-
-                <button
-                    id="reloadGameButton"
-                    class="game-btn">
-                    Try Again
-                </button>
-            </div>
-        `;
-
-        const reload =
-            document.getElementById(
-                "reloadGameButton"
-            );
-
-        if (reload) {
-            reload.onclick = () => {
-                openGame(
-                    title,
-                    gameFunction
-                );
-            };
-        }
-    }
 }
 
-function closeGame() {
-
-    cleanupGame();
-
+function closeGame(){
+    clearTimers();
     modal.classList.remove("show");
-
-    gameArea.innerHTML = "";
 }
 
-/* =========================================================
-   CLOSE BUTTON
-   ========================================================= */
+function clearTimers(){
+    timers.forEach(clearTimeout);
+    timers=[];
+}
 
-if (closeModal) {
+function addPlayed(){
+    played++;
 
-    closeModal.addEventListener(
-        "click",
-        closeGame
+    localStorage.setItem("brainPlayed",played);
+
+    document.getElementById("played").textContent=played;
+}
+
+function result(text){
+    game.innerHTML+=`<div class="result">${text}</div>`;
+}
+
+function rand(a,b){
+    return Math.floor(Math.random()*(b-a+1))+a;
+}
+
+document.getElementById("played").textContent=played;
+
+document.getElementById("bestReaction").textContent=
+    localStorage.getItem("reactionBest")||"—";
+
+document.getElementById("bestMemory").textContent=
+    localStorage.getItem("memoryBest")||"0";
+
+document.getElementById("bestTyping").textContent=
+    localStorage.getItem("typingBest")||"0";
+
+
+function quickTest(){
+    reaction();
+}
+
+
+/* REACTION TIME */
+
+function reaction(){
+
+    openGame(
+        "⚡ Reaction Time",
+        "Click START, wait for the panel to turn green, then click immediately."
     );
-}
 
-/* =========================================================
-   CLICK OUTSIDE MODAL
-   ========================================================= */
-
-modal.addEventListener(
-    "click",
-    event => {
-
-        if (event.target === modal) {
-            closeGame();
-        }
-
-    }
-);
-
-/* =========================================================
-   ESC KEY
-   ========================================================= */
-
-document.addEventListener(
-    "keydown",
-    event => {
-
-        if (
-            event.key === "Escape" &&
-            modal.classList.contains("show")
-        ) {
-            closeGame();
-        }
-
-    }
-);
-
-/* =========================================================
-   GAME BUTTON SYSTEM
-   ========================================================= */
-
-/*
-   IMPORTANT:
-   Event delegation means the cards work even if
-   their internal structure changes slightly.
-*/
-
-const gameFunctions = {
-
-    reaction: [
-        "Reaction Time",
-        reaction
-    ],
-
-    memory: [
-        "Memory Match",
-        memory
-    ],
-
-    sequence: [
-        "Sequence Memory",
-        sequence
-    ],
-
-    number: [
-        "Number Memory",
-        numberMemory
-    ],
-
-    sudoku: [
-        "Classic Sudoku",
-        sudoku
-    ],
-
-    wordSudoku: [
-        "Word Sudoku",
-        wordSudoku
-    ],
-
-    fifteen: [
-        "15 Puzzle",
-        fifteen
-    ],
-
-    lights: [
-        "Lights Out",
-        lightsOut
-    ],
-
-    stroop: [
-        "Stroop Focus",
-        stroop
-    ],
-
-    pattern: [
-        "Pattern Challenge",
-        pattern
-    ],
-
-    odd: [
-        "Odd One Out",
-        oddOneOut
-    ],
-
-    scramble: [
-        "Word Scramble",
-        scramble
-    ],
-
-    aim: [
-        "Aim Trainer",
-        aimTrainer
-    ],
-
-    typing: [
-        "Typing Speed",
-        typing
-    ],
-
-    focus: [
-        "Focus Test",
-        focusTest
-    ],
-
-    math: [
-        "Quick Math",
-        quickMath
-    ],
-
-    anagram: [
-        "Anagram",
-        anagram
-    ],
-
-    wordsearch: [
-        "Word Search",
-        wordSearch
-    ],
-
-    choice: [
-        "Choice Reaction",
-        choiceReaction
-    ]
-
-};
-
-/* =========================================================
-   CARD CLICK HANDLER
-   ========================================================= */
-
-document.addEventListener(
-    "click",
-    event => {
-
-        const button =
-            event.target.closest(
-                "[data-game]"
-            );
-
-        if (!button) return;
-
-        const game =
-            button.getAttribute(
-                "data-game"
-            );
-
-        if (!gameFunctions[game]) {
-
-            console.warn(
-                "Unknown game:",
-                game
-            );
-
-            return;
-        }
-
-        event.preventDefault();
-
-        const title =
-            gameFunctions[game][0];
-
-        const fn =
-            gameFunctions[game][1];
-
-        openGame(title, fn);
-    }
-);
-
-/* =========================================================
-   REACTION TIME
-   ========================================================= */
-
-function reaction() {
-
-    let waiting = false;
-    let ready = false;
-    let start = 0;
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Reaction Time</h2>
-
-            <p>
-                Click Start, wait for green,
-                then click as quickly as possible.
-            </p>
-
-            <button
-                id="reactionStart"
-                class="game-btn">
-                Start
-            </button>
-
-            <div
-                id="reactionBox"
-                class="reaction-box">
-                READY
-            </div>
-
-            <div
-                id="reactionResult"
-                class="result">
-            </div>
-
-        </div>
-
+    game.innerHTML+=`
+        <button class="primary control" id="reactStart">START</button>
+        <div class="reactionbox" id="reactionBox">READY</div>
+        <div id="reactResult"></div>
     `;
 
-    const startButton =
-        document.getElementById(
-            "reactionStart"
-        );
+    let box=document.getElementById("reactionBox");
+    let startTime=0;
+    let waiting=false;
 
-    const box =
-        document.getElementById(
-            "reactionBox"
-        );
+    document.getElementById("reactStart").onclick=()=>{
 
-    const result =
-        document.getElementById(
-            "reactionResult"
-        );
+        box.classList.remove("go");
+        box.textContent="WAIT...";
+        waiting=true;
 
-    startButton.onclick = () => {
+        let delay=rand(1500,4500);
 
-        clearTimers();
+        timers.push(setTimeout(()=>{
 
-        waiting = true;
-        ready = false;
+            box.classList.add("go");
+            box.textContent="GO!";
+            startTime=performance.now();
 
-        box.textContent =
-            "WAIT...";
-
-        box.classList.remove(
-            "ready"
-        );
-
-        timeout(() => {
-
-            ready = true;
-            waiting = false;
-
-            start =
-                performance.now();
-
-            box.textContent =
-                "CLICK!";
-
-            box.classList.add(
-                "ready"
-            );
-
-        }, 1000 + Math.random() * 2500);
+        },delay));
     };
 
-    box.onclick = () => {
+    box.onclick=()=>{
 
-        if (!waiting && !ready) {
-            return;
-        }
+        if(!waiting)return;
 
-        if (waiting) {
+        if(!box.classList.contains("go")){
 
             clearTimers();
-
-            waiting = false;
-
-            box.textContent =
-                "TOO EARLY!";
-
-            result.textContent =
-                "Press Start and try again.";
-
+            box.textContent="TOO EARLY!";
             return;
         }
 
-        const time =
-            Math.round(
-                performance.now() - start
-            );
+        let ms=Math.round(performance.now()-startTime);
 
-        ready = false;
+        waiting=false;
 
-        box.textContent =
-            `${time} ms`;
+        addPlayed();
 
-        box.classList.remove(
-            "ready"
+        let best=Number(
+            localStorage.getItem("reactionBest")||99999
         );
 
-        result.textContent =
-            "🎉 Great reaction!";
+        if(ms<best){
 
-        if (
-            stats.bestReaction === null ||
-            time < stats.bestReaction
-        ) {
+            localStorage.setItem("reactionBest",ms);
 
-            stats.bestReaction =
-                time;
+            document.getElementById("bestReaction").textContent=ms;
         }
 
-        gameWon();
+        document.getElementById("reactResult").innerHTML=
+            `<div class="result">
+                <strong>${ms} ms</strong>
+                Your reaction time
+            </div>`;
     };
 }
 
-/* =========================================================
-   MEMORY MATCH
-   ========================================================= */
 
-function memory() {
+/* MEMORY MATCH */
 
-    const symbols = [
-        "🍎","🍎",
-        "🚀","🚀",
-        "⭐","⭐",
-        "🎯","🎯",
-        "🧠","🧠",
-        "🔥","🔥",
-        "🌎","🌎",
-        "⚡","⚡"
-    ];
+function memory(){
 
-    symbols.sort(
-        () => Math.random() - 0.5
+    openGame(
+        "🃏 Memory Match",
+        "Find all matching pairs."
     );
 
-    gameArea.innerHTML = `
+    const icons=[
+        "🚀","🌎","⭐","🌙",
+        "🪐","☄️","👽","🛰️"
+    ];
 
-        <div class="game-intro">
+    let cards=[...icons,...icons]
+        .sort(()=>Math.random()-.5);
 
-            <h2>Memory Match</h2>
-
-            <p>
-                Find all matching pairs.
-            </p>
-
-            <div
-                id="memoryGrid"
-                class="memory-grid">
-            </div>
-
-            <div
-                id="memoryStatus"
-                class="result">
-                Matches: 0 / 8
-            </div>
-
-        </div>
-
+    game.innerHTML=`
+        <div class="grid memorygrid" id="memoryGrid"></div>
+        <p id="memoryInfo" class="instructions">
+            Moves: 0
+        </p>
     `;
 
-    const grid =
-        document.getElementById(
-            "memoryGrid"
-        );
+    const grid=document.getElementById("memoryGrid");
 
-    const status =
-        document.getElementById(
-            "memoryStatus"
-        );
+    let first=null;
+    let second=null;
+    let lock=false;
+    let moves=0;
+    let matched=0;
 
-    let first = null;
-    let second = null;
-    let locked = false;
-    let matches = 0;
+    cards.forEach((x,i)=>{
 
-    symbols.forEach(symbol => {
+        let b=document.createElement("button");
 
-        const card =
-            document.createElement(
-                "button"
-            );
+        b.className="mem";
+        b.textContent="?";
 
-        card.type = "button";
+        b.onclick=()=>{
 
-        card.className =
-            "memory-card";
+            if(
+                lock ||
+                b.classList.contains("matched") ||
+                b===first
+            )return;
 
-        card.textContent =
-            "?";
+            b.textContent=x;
+            b.classList.add("open");
 
-        card.dataset.symbol =
-            symbol;
+            if(!first){
 
-        card.onclick = () => {
-
-            if (
-                locked ||
-                card.classList.contains(
-                    "matched"
-                )
-            ) {
+                first=b;
                 return;
             }
 
-            card.textContent =
-                symbol;
+            second=b;
+            moves++;
+            lock=true;
 
-            card.classList.add(
-                "flipped"
-            );
+            if(first.dataset.x===undefined)
+                first.dataset.x=
+                    cards[Array.from(grid.children).indexOf(first)];
 
-            if (!first) {
+            if(second.dataset.x===undefined)
+                second.dataset.x=
+                    cards[Array.from(grid.children).indexOf(second)];
 
-                first = card;
+            let i1=Number(first.dataset.x);
+            let i2=Number(second.dataset.x);
 
-                return;
-            }
+            if(cards[i1]===cards[i2]){
 
-            second = card;
+                first.classList.add("matched");
+                second.classList.add("matched");
 
-            locked = true;
+                matched+=2;
 
-            if (
-                first.dataset.symbol ===
-                second.dataset.symbol
-            ) {
+                lock=false;
+                first=null;
+                second=null;
 
-                first.classList.add(
-                    "matched"
-                );
+                if(matched===cards.length){
 
-                second.classList.add(
-                    "matched"
-                );
+                    addPlayed();
 
-                matches++;
-
-                status.textContent =
-                    `Matches: ${matches} / 8`;
-
-                first = null;
-                second = null;
-                locked = false;
-
-                if (matches === 8) {
-
-                    status.textContent =
-                        "🎉 You found every pair!";
-
-                    gameWon();
+                    result(`
+                        <strong>🎉 Complete!</strong>
+                        ${moves} moves
+                    `);
                 }
 
-            } else {
+            }else{
 
-                timeout(() => {
+                timers.push(setTimeout(()=>{
 
-                    if (!first || !second) {
-                        return;
-                    }
+                    first.textContent="?";
+                    second.textContent="?";
 
-                    first.textContent =
-                        "?";
+                    first.classList.remove("open");
+                    second.classList.remove("open");
 
-                    second.textContent =
-                        "?";
+                    first=null;
+                    second=null;
+                    lock=false;
 
-                    first.classList.remove(
-                        "flipped"
-                    );
-
-                    second.classList.remove(
-                        "flipped"
-                    );
-
-                    first = null;
-                    second = null;
-
-                    locked = false;
-
-                }, 700);
+                },700));
             }
+
+            document.getElementById("memoryInfo")
+                .textContent=`Moves: ${moves}`;
         };
 
-        grid.appendChild(card);
+        grid.appendChild(b);
     });
 }
 
-/* =========================================================
-   SEQUENCE MEMORY
-   ========================================================= */
 
-function sequence() {
+/* SEQUENCE MEMORY */
 
-    let level = 1;
-    let sequence = [];
-    let player = 0;
-    let accepting = false;
-    let playing = false;
+function sequence(){
 
-    gameArea.innerHTML = `
+    openGame(
+        "🔵 Sequence Memory",
+        "Watch the highlighted tiles and repeat them in the same order."
+    );
 
-        <div class="game-intro">
-
-            <h2>Sequence Memory</h2>
-
-            <p>
-                Watch the lights and repeat
-                the exact sequence.
-            </p>
-
-            <div
-                id="sequenceBoard"
-                class="sequence-board">
-            </div>
-
-            <div
-                id="sequenceStatus"
-                class="result">
-                Press Start
-            </div>
-
-            <button
-                id="sequenceStart"
-                class="game-btn">
-                Start
-            </button>
-
-        </div>
-
+    game.innerHTML=`
+        <div class="seqgrid" id="seq"></div>
+        <p id="seqInfo" class="instructions">
+            Level 1
+        </p>
     `;
 
-    const board =
-        document.getElementById(
-            "sequenceBoard"
-        );
+    const grid=document.getElementById("seq");
 
-    const status =
-        document.getElementById(
-            "sequenceStatus"
-        );
+    let level=1;
+    let sequence=[];
+    let user=[];
+    let accept=false;
 
-    const startButton =
-        document.getElementById(
-            "sequenceStart"
-        );
+    for(let i=0;i<9;i++){
 
-    const cells = [];
+        let b=document.createElement("button");
 
-    for (let i = 0; i < 9; i++) {
+        b.className="seqcell";
 
-        const cell =
-            document.createElement(
-                "button"
-            );
+        b.onclick=()=>{
 
-        cell.type = "button";
+            if(!accept)return;
 
-        cell.className =
-            "sequence-cell";
+            let pos=user.length;
 
-        cell.dataset.index =
-            i;
+            if(i!==sequence[pos]){
 
-        cell.onclick = () => {
+                accept=false;
 
-            if (!accepting) {
-                return;
-            }
+                let best=Math.max(0,level-1);
 
-            const clicked =
-                Number(
-                    cell.dataset.index
+                let old=Number(
+                    localStorage.getItem("memoryBest")||0
                 );
 
-            if (
-                clicked !==
-                sequence[player]
-            ) {
+                if(best>old){
 
-                accepting = false;
-                playing = false;
+                    localStorage.setItem("memoryBest",best);
 
-                cell.classList.add(
-                    "wrong"
-                );
+                    document.getElementById("bestMemory")
+                        .textContent=best;
+                }
 
-                status.textContent =
-                    `Game Over — Level ${level}`;
+                result(`
+                    <strong>Level ${best}</strong>
+                    Sequence ended
+                `);
 
                 return;
             }
 
-            cell.classList.add(
-                "active"
-            );
+            user.push(i);
 
-            timeout(() => {
-                cell.classList.remove(
-                    "active"
-                );
-            }, 180);
+            if(user.length===sequence.length){
 
-            player++;
-
-            if (
-                player ===
-                sequence.length
-            ) {
-
-                accepting = false;
+                accept=false;
 
                 level++;
 
-                stats.bestMemory =
-                    Math.max(
-                        stats.bestMemory,
-                        level - 1
-                    );
-
-                saveStats();
-                updateStats();
-
-                status.textContent =
-                    `Level ${level}`;
-
-                timeout(
-                    showSequence,
-                    500
-                );
+                startRound();
             }
         };
 
-        cells.push(cell);
-
-        board.appendChild(cell);
+        grid.appendChild(b);
     }
 
-    function showSequence() {
+    function startRound(){
 
-        if (!playing) {
-            return;
-        }
+        document.getElementById("seqInfo")
+            .textContent=`Level ${level}`;
 
-        accepting = false;
+        user=[];
 
-        sequence.push(
-            Math.floor(
-                Math.random() * 9
-            )
-        );
+        sequence.push(rand(0,8));
 
-        player = 0;
+        let n=0;
 
-        status.textContent =
-            `Watch — Level ${level}`;
+        let play=()=>{
 
-        cells.forEach(cell => {
+            grid.children[sequence[n]]
+                .classList.add("active");
 
-            cell.disabled = true;
+            timers.push(setTimeout(()=>{
 
-            cell.classList.remove(
-                "active",
-                "wrong"
-            );
-        });
+                grid.children[sequence[n]]
+                    .classList.remove("active");
 
-        sequence.forEach(
-            (index, position) => {
+                n++;
 
-                timeout(() => {
+                if(n<sequence.length)
+                    play();
+                else
+                    accept=true;
 
-                    cells[index]
-                        .classList.add(
-                            "active"
-                        );
+            },350));
+        };
 
-                    timeout(() => {
-
-                        cells[index]
-                            .classList.remove(
-                                "active"
-                            );
-
-                    }, 400);
-
-                }, position * 650);
-            }
-        );
-
-        timeout(() => {
-
-            if (!playing) {
-                return;
-            }
-
-            cells.forEach(cell => {
-                cell.disabled = false;
-            });
-
-            accepting = true;
-
-            status.textContent =
-                `Your turn — Level ${level}`;
-
-        }, sequence.length * 650 + 400);
+        play();
     }
 
-    startButton.onclick = () => {
-
-        clearTimers();
-
-        level = 1;
-        sequence = [];
-        player = 0;
-        accepting = false;
-        playing = true;
-
-        startButton.disabled = true;
-
-        showSequence();
-    };
-
-    cleanupFunction = () => {
-
-        playing = false;
-        accepting = false;
-
-    };
+    startRound();
 }
 
-/* =========================================================
-   NUMBER MEMORY
-   ========================================================= */
 
-function numberMemory() {
+/* NUMBER MEMORY */
 
-    let level = 1;
-    let number = "";
+function numberMemory(){
 
-    gameArea.innerHTML = `
+    openGame(
+        "🔢 Number Memory",
+        "Memorize the number before it disappears."
+    );
 
-        <div class="game-intro">
+    let level=3;
 
-            <h2>Number Memory</h2>
+    function round(){
 
-            <p>
-                Memorize the number.
-                It gets longer every round.
-            </p>
+        let num="";
 
-            <div
-                id="numberDisplay"
-                style="
-                font-size:42px;
-                font-weight:900;
-                margin:25px;
-                letter-spacing:7px;">
-                Press Start
+        for(let i=0;i<level;i++)
+            num+=rand(0,9);
+
+        game.innerHTML+=`
+            <div class="bigtext" id="number">
+                ${num}
             </div>
+
+            <input
+                class="control"
+                id="numInput"
+                placeholder="Type the number"
+            >
 
             <button
-                id="numberStart"
-                class="game-btn">
-                Start
+                class="primary control"
+                id="numCheck"
+            >
+                CHECK
             </button>
 
-            <div
-                id="numberInputArea">
-            </div>
+            <p id="numInfo" class="instructions">
+                Remember it...
+            </p>
+        `;
 
-            <div
-                id="numberStatus"
-                class="result">
-                Level 1
-            </div>
+        let n=document.getElementById("number");
+        let input=document.getElementById("numInput");
 
-        </div>
+        timers.push(setTimeout(()=>{
 
-    `;
+            n.textContent="????????";
 
-    const display =
-        document.getElementById(
-            "numberDisplay"
-        );
-
-    const startButton =
-        document.getElementById(
-            "numberStart"
-        );
-
-    const inputArea =
-        document.getElementById(
-            "numberInputArea"
-        );
-
-    const status =
-        document.getElementById(
-            "numberStatus"
-        );
-
-    startButton.onclick = () => {
-
-        number = "";
-
-        for (
-            let i = 0;
-            i < level;
-            i++
-        ) {
-            number +=
-                Math.floor(
-                    Math.random() * 10
-                );
-        }
-
-        display.textContent =
-            number;
-
-        startButton.disabled = true;
-
-        timeout(() => {
-
-            display.textContent =
-                "???";
-
-            inputArea.innerHTML = `
-
-                <input
-                    id="numberAnswer"
-                    class="game-input"
-                    inputmode="numeric"
-                    autocomplete="off"
-                    placeholder="Enter number">
-
-                <button
-                    id="numberCheck"
-                    class="game-btn">
-                    Check
-                </button>
-
-            `;
-
-            const input =
-                document.getElementById(
-                    "numberAnswer"
-                );
-
-            const check =
-                document.getElementById(
-                    "numberCheck"
-                );
+            document.getElementById("numInfo")
+                .textContent="Enter what you remember.";
 
             input.focus();
 
-            function checkAnswer() {
+        },Math.max(1000,level*450)));
 
-                if (
-                    input.value.trim() ===
-                    number
-                ) {
+        document.getElementById("numCheck").onclick=()=>{
 
-                    status.textContent =
-                        `✅ Correct! Level ${level} complete.`;
+            if(input.value===num){
 
-                    stats.bestMemory =
-                        Math.max(
-                            stats.bestMemory,
-                            level
-                        );
+                level++;
 
-                    gameWon();
+                document.getElementById("numInfo")
+                    .textContent="Correct! Next level...";
 
-                    level++;
+                timers.push(setTimeout(()=>{
 
-                    timeout(() => {
-                        numberMemory();
-                    }, 1000);
+                    game.innerHTML=`
+                        <h2>🔢 Number Memory</h2>
+                        <div class="instructions">
+                            Level ${level}
+                        </div>
+                    `;
 
-                } else {
+                    round();
 
-                    status.textContent =
-                        `❌ Wrong. The number was ${number}.`;
+                },500));
 
-                    timeout(() => {
-                        numberMemory();
-                    }, 1200);
+            }else{
+
+                let best=level-1;
+
+                let old=Number(
+                    localStorage.getItem("memoryBest")||0
+                );
+
+                if(best>old){
+
+                    localStorage.setItem("memoryBest",best);
+
+                    document.getElementById("bestMemory")
+                        .textContent=best;
                 }
+
+                result(`
+                    <strong>${best} digits</strong>
+                    Challenge complete
+                `);
             }
+        };
+    }
 
-            check.onclick =
-                checkAnswer;
-
-            input.onkeydown =
-                event => {
-
-                    if (
-                        event.key ===
-                        "Enter"
-                    ) {
-                        checkAnswer();
-                    }
-
-                };
-
-        }, 1500);
-    };
+    round();
 }
 
-/* =========================================================
-   CLASSIC SUDOKU
-   ========================================================= */
 
-function sudoku() {
+/* SUDOKU */
 
-    const solution = [
+function sudoku(){
+
+    openGame(
+        "🔢 Classic Sudoku",
+        "Fill every empty cell so each row, column and 3×3 box contains 1–9."
+    );
+
+    const solution=[
         [5,3,4,6,7,8,9,1,2],
         [6,7,2,1,9,5,3,4,8],
         [1,9,8,3,4,2,5,6,7],
@@ -1202,2466 +488,1083 @@ function sudoku() {
         [3,4,5,2,8,6,1,7,9]
     ];
 
-    let board =
-        solution.map(row => [...row]);
+    let puzzle=solution.map(r=>r.slice());
 
-    gameArea.innerHTML = `
+    for(let k=0;k<48;k++){
 
-        <div class="game-intro">
+        let r=rand(0,8);
+        let c=rand(0,8);
 
-            <h2>Classic Sudoku</h2>
+        puzzle[r][c]=0;
+    }
 
-            <p>
-                Complete the Sudoku grid.
-            </p>
+    game.innerHTML+=`
+        <div class="sudoku" id="sdk"></div>
 
-            <div
-                id="sudokuGrid"
-                class="sudoku-grid">
-            </div>
+        <button class="primary control" id="checkSudoku">
+            CHECK SUDOKU
+        </button>
 
-            <div
-                id="sudokuStatus"
-                class="result">
-                Complete the puzzle.
-            </div>
-
-            <button
-                id="sudokuNew"
-                class="game-btn">
-                New Puzzle
-            </button>
-
-        </div>
-
+        <button class="secondary control" id="solveSudoku">
+            SHOW SOLUTION
+        </button>
     `;
 
-    const grid =
-        document.getElementById(
-            "sudokuGrid"
-        );
+    const sdk=document.getElementById("sdk");
+    let inputs=[];
 
-    const status =
-        document.getElementById(
-            "sudokuStatus"
-        );
+    puzzle.forEach((row,r)=>{
 
-    const newButton =
-        document.getElementById(
-            "sudokuNew"
-        );
+        row.forEach((v,c)=>{
 
-    function generate() {
+            let x=document.createElement("input");
 
-        board =
-            solution.map(
-                row => [...row]
-            );
+            x.maxLength=1;
+            x.inputMode="numeric";
 
-        const positions =
-            Array.from(
-                { length: 81 },
-                (_, i) => i
-            );
+            if(v){
 
-        positions.sort(
-            () => Math.random() - 0.5
-        );
-
-        for (
-            let i = 0;
-            i < 45;
-            i++
-        ) {
-
-            const pos =
-                positions[i];
-
-            const row =
-                Math.floor(pos / 9);
-
-            const col =
-                pos % 9;
-
-            board[row][col] = 0;
-        }
-    }
-
-    function render() {
-
-        grid.innerHTML = "";
-
-        for (
-            let row = 0;
-            row < 9;
-            row++
-        ) {
-
-            for (
-                let col = 0;
-                col < 9;
-                col++
-            ) {
-
-                const input =
-                    document.createElement(
-                        "input"
-                    );
-
-                input.className =
-                    "sudoku-cell";
-
-                input.type = "text";
-                input.maxLength = 1;
-                input.inputMode =
-                    "numeric";
-
-                if (
-                    board[row][col] !== 0
-                ) {
-
-                    input.value =
-                        board[row][col];
-
-                    input.readOnly =
-                        true;
-
-                    input.classList.add(
-                        "given"
-                    );
-
-                } else {
-
-                    input.value = "";
-
-                    input.oninput = () => {
-
-                        input.value =
-                            input.value.replace(
-                                /[^1-9]/g,
-                                ""
-                            );
-
-                        board[row][col] =
-                            Number(
-                                input.value
-                            ) || 0;
-
-                        validate();
-                    };
-                }
-
-                grid.appendChild(
-                    input
-                );
+                x.value=v;
+                x.disabled=true;
             }
-        }
-    }
 
-    function validate() {
+            x.dataset.answer=solution[r][c];
 
-        let complete = true;
+            sdk.appendChild(x);
+            inputs.push(x);
+        });
+    });
 
-        let correct = true;
+    document.getElementById("checkSudoku").onclick=()=>{
 
-        for (
-            let row = 0;
-            row < 9;
-            row++
-        ) {
+        let good=inputs.every(
+            x=>Number(x.value)===Number(x.dataset.answer)
+        );
 
-            for (
-                let col = 0;
-                col < 9;
-                col++
-            ) {
+        addPlayed();
 
-                if (
-                    board[row][col] === 0
-                ) {
-                    complete = false;
-                }
-
-                if (
-                    board[row][col] !==
-                    solution[row][col]
-                ) {
-                    correct = false;
-                }
-            }
-        }
-
-        if (!complete) {
-
-            status.textContent =
-                "Keep going...";
-
-            return;
-        }
-
-        if (correct) {
-
-            status.textContent =
-                "🎉 Sudoku solved!";
-
-            gameWon();
-
-        } else {
-
-            status.textContent =
-                "❌ Some answers are incorrect.";
-        }
-    }
-
-    newButton.onclick = () => {
-
-        generate();
-        render();
-
-        status.textContent =
-            "New puzzle created.";
-
+        result(
+            good
+            ?
+            `<strong>🎉 Solved!</strong>Perfect Sudoku!`
+            :
+            `<strong>Not yet!</strong>Some cells are incorrect or empty.`
+        );
     };
 
-    generate();
-    render();
+    document.getElementById("solveSudoku").onclick=()=>{
+
+        inputs.forEach(
+            x=>x.value=x.dataset.answer
+        );
+    };
 }
 
-/* =========================================================
-   WORD SUDOKU
-   ========================================================= */
 
-function wordSudoku() {
+/* WORD SUDOKU */
 
-    const letters = [
-        "A","B","C",
-        "D","E","F",
-        "G","H","I"
+function wordSudoku(){
+
+    openGame(
+        "🔤 Word Sudoku",
+        "Use A, B, C and D. Each row, column and 2×2 box must contain every letter once."
+    );
+
+    const sol=[
+        ["A","B","C","D"],
+        ["C","D","A","B"],
+        ["B","A","D","C"],
+        ["D","C","B","A"]
     ];
 
-    const solution = [
-        ["A","B","C","D","E","F","G","H","I"],
-        ["D","E","F","G","H","I","A","B","C"],
-        ["G","H","I","A","B","C","D","E","F"],
+    let p=sol.map(r=>r.slice());
 
-        ["B","C","D","E","F","G","H","I","A"],
-        ["E","F","G","H","I","A","B","C","D"],
-        ["H","I","A","B","C","D","E","F","G"],
+    for(let i=0;i<7;i++)
+        p[rand(0,3)][rand(0,3)]="";
 
-        ["C","D","E","F","G","H","I","A","B"],
-        ["F","G","H","I","A","B","C","D","E"],
-        ["I","A","B","C","D","E","F","G","H"]
-    ];
-
-    let board =
-        solution.map(row => [...row]);
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Word Sudoku</h2>
-
-            <p>
-                Use A–I instead of numbers.
-            </p>
-
-            <div
-                id="wordSudokuGrid"
-                class="sudoku-grid">
-            </div>
-
-            <div
-                id="wordSudokuStatus"
-                class="result">
-                Complete the puzzle.
-            </div>
-
-            <button
-                id="wordSudokuNew"
-                class="game-btn">
-                New Puzzle
-            </button>
-
-        </div>
-
+    game.innerHTML+=`
+        <div class="wordgrid" id="wg"></div>
+        <div class="letters" id="letters"></div>
+        <button class="primary control" id="checkWord">
+            CHECK
+        </button>
     `;
 
-    const grid =
-        document.getElementById(
-            "wordSudokuGrid"
-        );
+    const wg=document.getElementById("wg");
 
-    const status =
-        document.getElementById(
-            "wordSudokuStatus"
-        );
+    let cells=[];
 
-    const newButton =
-        document.getElementById(
-            "wordSudokuNew"
-        );
+    p.forEach((row,r)=>{
 
-    function generate() {
+        row.forEach((v,c)=>{
 
-        board =
-            solution.map(
-                row => [...row]
-            );
+            let b=document.createElement("button");
 
-        const positions =
-            Array.from(
-                { length: 81 },
-                (_, i) => i
-            );
+            b.className="wordcell";
+            b.textContent=v;
 
-        positions.sort(
-            () => Math.random() - 0.5
-        );
+            b.dataset.r=r;
+            b.dataset.c=c;
 
-        for (
-            let i = 0;
-            i < 45;
-            i++
-        ) {
+            b.onclick=()=>{
 
-            const pos =
-                positions[i];
+                if(v)return;
 
-            const row =
-                Math.floor(pos / 9);
-
-            const col =
-                pos % 9;
-
-            board[row][col] = "";
-        }
-    }
-
-    function render() {
-
-        grid.innerHTML = "";
-
-        for (
-            let row = 0;
-            row < 9;
-            row++
-        ) {
-
-            for (
-                let col = 0;
-                col < 9;
-                col++
-            ) {
-
-                const input =
-                    document.createElement(
-                        "input"
-                    );
-
-                input.className =
-                    "sudoku-cell";
-
-                input.maxLength = 1;
-
-                if (
-                    board[row][col]
-                ) {
-
-                    input.value =
-                        board[row][col];
-
-                    input.readOnly =
-                        true;
-
-                    input.classList.add(
-                        "given"
-                    );
-
-                } else {
-
-                    input.oninput = () => {
-
-                        let value =
-                            input.value
-                                .toUpperCase()
-                                .replace(
-                                    /[^A-I]/g,
-                                    ""
-                                );
-
-                        input.value =
-                            value;
-
-                        board[row][col] =
-                            value;
-
-                        validate();
-                    };
-                }
-
-                grid.appendChild(
-                    input
+                cells.forEach(
+                    x=>x.classList.remove("selected")
                 );
+
+                b.classList.add("selected");
+            };
+
+            wg.appendChild(b);
+            cells.push(b);
+        });
+    });
+
+    ["A","B","C","D"].forEach(l=>{
+
+        let b=document.createElement("button");
+
+        b.className="letter";
+        b.textContent=l;
+
+        b.onclick=()=>{
+
+            let s=cells.find(
+                x=>x.classList.contains("selected")
+            );
+
+            if(s){
+
+                s.textContent=l;
+
+                s.classList.remove("selected");
+                s.classList.add("filled");
             }
-        }
-    }
+        };
 
-    function validate() {
+        document.getElementById("letters")
+            .appendChild(b);
+    });
 
-        let complete = true;
-        let correct = true;
+    document.getElementById("checkWord").onclick=()=>{
 
-        for (
-            let row = 0;
-            row < 9;
-            row++
-        ) {
+        let good=true;
 
-            for (
-                let col = 0;
-                col < 9;
-                col++
-            ) {
+        cells.forEach(x=>{
 
-                if (!board[row][col]) {
-                    complete = false;
-                }
+            if(
+                x.textContent!==
+                sol[x.dataset.r][x.dataset.c]
+            )
+                good=false;
+        });
 
-                if (
-                    board[row][col] !==
-                    solution[row][col]
-                ) {
-                    correct = false;
-                }
-            }
-        }
+        addPlayed();
 
-        if (!complete) {
-
-            status.textContent =
-                "Keep going...";
-
-            return;
-        }
-
-        if (correct) {
-
-            status.textContent =
-                "🎉 Word Sudoku solved!";
-
-            gameWon();
-
-        } else {
-
-            status.textContent =
-                "❌ Some answers are incorrect.";
-        }
-    }
-
-    newButton.onclick = () => {
-
-        generate();
-        render();
-
-        status.textContent =
-            "New puzzle created.";
+        result(
+            good
+            ?
+            `<strong>🎉 Solved!</strong>Word Sudoku complete!`
+            :
+            `<strong>Keep going!</strong>Check the letters.`
+        );
     };
-
-    generate();
-    render();
 }
 
-/* =========================================================
-   15 PUZZLE
-   ========================================================= */
 
-function fifteen() {
+/* 15 PUZZLE */
 
-    let board = [
+function fifteen(){
+
+    openGame(
+        "🧩 15 Puzzle",
+        "Move tiles into numerical order."
+    );
+
+    game.innerHTML+=`
+        <div class="fifteen" id="fif"></div>
+        <p id="moves" class="instructions">
+            Moves: 0
+        </p>
+    `;
+
+    let arr=[
         1,2,3,4,
         5,6,7,8,
         9,10,11,12,
         13,14,15,0
     ];
 
-    gameArea.innerHTML = `
+    for(let i=0;i<100;i++){
 
-        <div class="game-intro">
+        let a=arr.indexOf(0);
+        let neighbors=[];
 
-            <h2>15 Puzzle</h2>
+        if(a>=4)neighbors.push(a-4);
+        if(a<12)neighbors.push(a+4);
+        if(a%4)neighbors.push(a-1);
+        if(a%4<3)neighbors.push(a+1);
 
-            <p>
-                Arrange the numbers from 1–15.
-            </p>
+        let n=neighbors[
+            rand(0,neighbors.length-1)
+        ];
 
-            <div
-                id="fifteenGrid"
-                class="fifteen-grid">
-            </div>
+        [arr[a],arr[n]]=[
+            arr[n],arr[a]
+        ];
+    }
 
-            <div
-                id="fifteenStatus"
-                class="result">
-            </div>
+    let moves=0;
 
-            <button
-                id="fifteenShuffle"
-                class="game-btn">
-                Shuffle
-            </button>
+    function draw(){
 
-        </div>
+        const f=document.getElementById("fif");
 
-    `;
+        f.innerHTML="";
 
-    const grid =
-        document.getElementById(
-            "fifteenGrid"
-        );
+        arr.forEach((v,i)=>{
 
-    const status =
-        document.getElementById(
-            "fifteenStatus"
-        );
+            let b=document.createElement("button");
 
-    function render() {
+            b.className="tile"+(!v?" empty":"");
+            b.textContent=v||"";
 
-        grid.innerHTML = "";
+            b.onclick=()=>{
 
-        board.forEach(
-            (value, index) => {
+                let z=arr.indexOf(0);
 
-                const button =
-                    document.createElement(
-                        "button"
-                    );
+                if(
+                    Math.abs(z-i)===4 ||
+                    (
+                        Math.floor(z/4)===
+                        Math.floor(i/4) &&
+                        Math.abs(z-i)===1
+                    )
+                ){
 
-                button.type = "button";
-
-                button.className =
-                    "puzzle-tile";
-
-                if (value !== 0) {
-                    button.textContent =
-                        value;
-                } else {
-                    button.classList.add(
-                        "empty"
-                    );
-                }
-
-                button.onclick = () => {
-
-                    const empty =
-                        board.indexOf(0);
-
-                    const r1 =
-                        Math.floor(
-                            index / 4
-                        );
-
-                    const c1 =
-                        index % 4;
-
-                    const r2 =
-                        Math.floor(
-                            empty / 4
-                        );
-
-                    const c2 =
-                        empty % 4;
-
-                    if (
-                        Math.abs(r1-r2) +
-                        Math.abs(c1-c2)
-                        !== 1
-                    ) {
-                        return;
-                    }
-
-                    [
-                        board[index],
-                        board[empty]
-                    ] =
-                    [
-                        board[empty],
-                        board[index]
+                    [arr[z],arr[i]]=[
+                        arr[i],arr[z]
                     ];
 
-                    render();
+                    moves++;
 
-                    if (
-                        board.every(
-                            (v,i) =>
-                                v ===
-                                (
-                                    i === 15
-                                    ? 0
-                                    : i + 1
-                                )
+                    document.getElementById("moves")
+                        .textContent=`Moves: ${moves}`;
+
+                    draw();
+
+                    if(
+                        arr.every(
+                            (x,j)=>x===j+1||j===15
                         )
-                    ) {
+                    ){
 
-                        status.textContent =
-                            "🎉 Solved!";
+                        addPlayed();
 
-                        gameWon();
+                        result(`
+                            <strong>🎉 Solved!</strong>
+                            ${moves} moves
+                        `);
                     }
-                };
+                }
+            };
 
-                grid.appendChild(
-                    button
-                );
-            }
-        );
+            f.appendChild(b);
+        });
     }
 
-    function shuffle() {
+    draw();
+}
 
-        for (
-            let i = 0;
-            i < 150;
-            i++
-        ) {
 
-            const empty =
-                board.indexOf(0);
+/* LIGHTS OUT */
 
-            const row =
-                Math.floor(
-                    empty / 4
-                );
+function lightsOut(){
 
-            const col =
-                empty % 4;
+    openGame(
+        "💡 Lights Out",
+        "Click lights to turn them and their neighbors on/off. Turn everything off."
+    );
 
-            const moves = [];
+    game.innerHTML=`
+        <div class="lights" id="lights"></div>
+        <p id="lightMoves" class="instructions">
+            Moves: 0
+        </p>
+    `;
 
-            if (row > 0)
-                moves.push(empty - 4);
+    let arr=Array(25).fill(true);
 
-            if (row < 3)
-                moves.push(empty + 4);
+    for(let i=0;i<25;i++)
+        if(Math.random()>.45)
+            arr[i]=false;
 
-            if (col > 0)
-                moves.push(empty - 1);
+    let moves=0;
 
-            if (col < 3)
-                moves.push(empty + 1);
+    function draw(){
 
-            const move =
-                moves[
-                    Math.floor(
-                        Math.random() *
-                        moves.length
+        const box=document.getElementById("lights");
+
+        box.innerHTML="";
+
+        arr.forEach((on,i)=>{
+
+            let b=document.createElement("button");
+
+            b.className="light"+(on?" on":"");
+
+            b.onclick=()=>{
+
+                [
+                    i,
+                    i-1,
+                    i+1,
+                    i-5,
+                    i+5
+                ].forEach(x=>{
+
+                    if(
+                        x>=0 &&
+                        x<25 &&
+                        !(x===i-1&&i%5===0) &&
+                        !(x===i+1&&i%5===4)
                     )
-                ];
+                        arr[x]=!arr[x];
+                });
 
-            [
-                board[empty],
-                board[move]
-            ] =
-            [
-                board[move],
-                board[empty]
-            ];
-        }
+                moves++;
 
-        status.textContent =
-            "Arrange the numbers.";
+                draw();
 
-        render();
-    }
+                if(arr.every(x=>!x)){
 
-    document
-        .getElementById(
-            "fifteenShuffle"
-        )
-        .onclick = shuffle;
+                    addPlayed();
 
-    shuffle();
-}
-
-/* =========================================================
-   LIGHTS OUT
-   ========================================================= */
-
-function lightsOut() {
-
-    let lights =
-        Array(25).fill(false);
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Lights Out</h2>
-
-            <p>
-                Turn every light off.
-            </p>
-
-            <div
-                id="lightsGrid"
-                class="lights-grid">
-            </div>
-
-            <div
-                id="lightsStatus"
-                class="result">
-            </div>
-
-            <button
-                id="lightsNew"
-                class="game-btn">
-                New Puzzle
-            </button>
-
-        </div>
-
-    `;
-
-    const grid =
-        document.getElementById(
-            "lightsGrid"
-        );
-
-    const status =
-        document.getElementById(
-            "lightsStatus"
-        );
-
-    function toggle(index) {
-
-        const row =
-            Math.floor(index / 5);
-
-        const col =
-            index % 5;
-
-        const cells = [
-            [row,col],
-            [row-1,col],
-            [row+1,col],
-            [row,col-1],
-            [row,col+1]
-        ];
-
-        cells.forEach(
-            ([r,c]) => {
-
-                if (
-                    r >= 0 &&
-                    r < 5 &&
-                    c >= 0 &&
-                    c < 5
-                ) {
-
-                    const i =
-                        r * 5 + c;
-
-                    lights[i] =
-                        !lights[i];
+                    result(`
+                        <strong>🎉 Lights Out!</strong>
+                        ${moves} moves
+                    `);
                 }
+            };
 
-            }
-        );
-    }
-
-    function render() {
-
-        grid.innerHTML = "";
-
-        lights.forEach(
-            (on,index) => {
-
-                const button =
-                    document.createElement(
-                        "button"
-                    );
-
-                button.type = "button";
-
-                button.className =
-                    "light-cell";
-
-                if (on) {
-                    button.classList.add(
-                        "on"
-                    );
-                }
-
-                button.onclick = () => {
-
-                    toggle(index);
-
-                    render();
-
-                    const remaining =
-                        lights.filter(
-                            Boolean
-                        ).length;
-
-                    status.textContent =
-                        `Lights remaining: ${remaining}`;
-
-                    if (
-                        remaining === 0
-                    ) {
-
-                        status.textContent =
-                            "🎉 All lights are off!";
-
-                        gameWon();
-                    }
-                };
-
-                grid.appendChild(
-                    button
-                );
-            }
-        );
-    }
-
-    function newPuzzle() {
-
-        lights =
-            Array(25).fill(false);
-
-        for (
-            let i = 0;
-            i < 12;
-            i++
-        ) {
-
-            toggle(
-                Math.floor(
-                    Math.random() * 25
-                )
-            );
-        }
-
-        render();
-
-        status.textContent =
-            "Turn every light off.";
-    }
-
-    document
-        .getElementById(
-            "lightsNew"
-        )
-        .onclick =
-        newPuzzle;
-
-    newPuzzle();
-}
-
-/* =========================================================
-   STROOP
-   ========================================================= */
-
-function stroop() {
-
-    const colors = [
-        "RED",
-        "BLUE",
-        "GREEN",
-        "YELLOW"
-    ];
-
-    let score = 0;
-    let question = 0;
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Stroop Focus</h2>
-
-            <p>
-                Choose the COLOR, not the word.
-            </p>
-
-            <div
-                id="stroopWord"
-                style="
-                font-size:48px;
-                font-weight:900;
-                margin:30px;">
-            </div>
-
-            <div
-                id="stroopButtons"
-                class="button-grid">
-            </div>
-
-            <div
-                id="stroopStatus"
-                class="result">
-                Score: 0 / 10
-            </div>
-
-        </div>
-
-    `;
-
-    const word =
-        document.getElementById(
-            "stroopWord"
-        );
-
-    const buttons =
-        document.getElementById(
-            "stroopButtons"
-        );
-
-    const status =
-        document.getElementById(
-            "stroopStatus"
-        );
-
-    function next() {
-
-        if (question >= 10) {
-
-            gameWon();
-
-            status.textContent =
-                `🎉 Finished! ${score}/10`;
-
-            return;
-        }
-
-        question++;
-
-        const text =
-            colors[
-                Math.floor(
-                    Math.random() *
-                    colors.length
-                )
-            ];
-
-        const color =
-            colors[
-                Math.floor(
-                    Math.random() *
-                    colors.length
-                )
-            ];
-
-        word.textContent =
-            text;
-
-        word.style.color =
-            color.toLowerCase();
-
-        buttons.innerHTML = "";
-
-        colors.forEach(
-            value => {
-
-                const button =
-                    document.createElement(
-                        "button"
-                    );
-
-                button.className =
-                    "game-btn";
-
-                button.type =
-                    "button";
-
-                button.textContent =
-                    value;
-
-                button.onclick = () => {
-
-                    if (
-                        value === color
-                    ) {
-                        score++;
-                    }
-
-                    status.textContent =
-                        `Score: ${score}/10`;
-
-                    next();
-                };
-
-                buttons.appendChild(
-                    button
-                );
-            }
-        );
-    }
-
-    next();
-}
-
-/* =========================================================
-   PATTERN
-   ========================================================= */
-
-function pattern() {
-
-    let pattern =
-        [];
-
-    let player =
-        [];
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Pattern Challenge</h2>
-
-            <p>
-                Remember the pattern.
-            </p>
-
-            <div
-                id="patternGrid"
-                class="pattern-grid">
-            </div>
-
-            <div
-                id="patternStatus"
-                class="result">
-                Press Start
-            </div>
-
-            <button
-                id="patternStart"
-                class="game-btn">
-                Start
-            </button>
-
-        </div>
-
-    `;
-
-    const grid =
-        document.getElementById(
-            "patternGrid"
-        );
-
-    const status =
-        document.getElementById(
-            "patternStatus"
-        );
-
-    const start =
-        document.getElementById(
-            "patternStart"
-        );
-
-    const cells = [];
-
-    for (
-        let i = 0;
-        i < 4;
-        i++
-    ) {
-
-        const cell =
-            document.createElement(
-                "button"
-            );
-
-        cell.className =
-            "pattern-cell";
-
-        cell.onclick = () => {
-
-            if (
-                !start.disabled
-            ) {
-                return;
-            }
-
-            player.push(i);
-
-            if (
-                player[
-                    player.length - 1
-                ] !==
-                pattern[
-                    player.length - 1
-                ]
-            ) {
-
-                status.textContent =
-                    "❌ Wrong pattern.";
-
-                start.disabled =
-                    false;
-
-                return;
-            }
-
-            if (
-                player.length ===
-                pattern.length
-            ) {
-
-                gameWon();
-
-                status.textContent =
-                    "🎉 Correct pattern!";
-
-                start.disabled =
-                    false;
-            }
-        };
-
-        cells.push(cell);
-
-        grid.appendChild(
-            cell
-        );
-    }
-
-    start.onclick = () => {
-
-        pattern = [
-            Math.floor(
-                Math.random() * 4
-            ),
-            Math.floor(
-                Math.random() * 4
-            ),
-            Math.floor(
-                Math.random() * 4
-            ),
-            Math.floor(
-                Math.random() * 4
-            )
-        ];
-
-        player = [];
-
-        start.disabled =
-            true;
-
-        pattern.forEach(
-            (index,position) => {
-
-                timeout(() => {
-
-                    cells[index]
-                        .classList.add(
-                            "active"
-                        );
-
-                    timeout(() => {
-
-                        cells[index]
-                            .classList.remove(
-                                "active"
-                            );
-
-                    },350);
-
-                },position * 500);
-            }
-        );
-
-        timeout(() => {
-
-            status.textContent =
-                "Your turn!";
-
-        },pattern.length * 500);
-    };
-}
-
-/* =========================================================
-   ODD ONE OUT
-   ========================================================= */
-
-function oddOneOut() {
-
-    const odd =
-        Math.floor(
-            Math.random() * 9
-        );
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Odd One Out</h2>
-
-            <p>
-                Find the different symbol.
-            </p>
-
-            <div
-                id="oddGrid"
-                class="odd-grid">
-            </div>
-
-            <div
-                id="oddStatus"
-                class="result">
-            </div>
-
-        </div>
-
-    `;
-
-    const grid =
-        document.getElementById(
-            "oddGrid"
-        );
-
-    const status =
-        document.getElementById(
-            "oddStatus"
-        );
-
-    for (
-        let i = 0;
-        i < 9;
-        i++
-    ) {
-
-        const button =
-            document.createElement(
-                "button"
-            );
-
-        button.className =
-            "odd-cell";
-
-        button.textContent =
-            i === odd
-                ? "◇"
-                : "◆";
-
-        button.onclick = () => {
-
-            if (i === odd) {
-
-                status.textContent =
-                    "🎉 Correct!";
-
-                gameWon();
-
-            } else {
-
-                status.textContent =
-                    "❌ Try again.";
-            }
-        };
-
-        grid.appendChild(
-            button
-        );
-    }
-}
-
-/* =========================================================
-   WORD SCRAMBLE
-   ========================================================= */
-
-function scramble() {
-
-    const words = [
-        "planet",
-        "rocket",
-        "science",
-        "library",
-        "computer",
-        "galaxy",
-        "puzzle",
-        "adventure"
-    ];
-
-    const answer =
-        words[
-            Math.floor(
-                Math.random() *
-                words.length
-            )
-        ];
-
-    const scrambled =
-        answer
-            .split("")
-            .sort(
-                () => Math.random() - 0.5
-            )
-            .join("");
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Word Scramble</h2>
-
-            <div
-                style="
-                font-size:42px;
-                font-weight:900;
-                margin:25px;">
-                ${scrambled}
-            </div>
-
-            <input
-                id="scrambleInput"
-                class="game-input"
-                placeholder="Your answer">
-
-            <button
-                id="scrambleCheck"
-                class="game-btn">
-                Check
-            </button>
-
-            <div
-                id="scrambleStatus"
-                class="result">
-            </div>
-
-        </div>
-
-    `;
-
-    const input =
-        document.getElementById(
-            "scrambleInput"
-        );
-
-    const button =
-        document.getElementById(
-            "scrambleCheck"
-        );
-
-    const status =
-        document.getElementById(
-            "scrambleStatus"
-        );
-
-    function check() {
-
-        if (
-            input.value
-                .trim()
-                .toLowerCase() ===
-            answer
-        ) {
-
-            status.textContent =
-                "🎉 Correct!";
-
-            gameWon();
-
-        } else {
-
-            status.textContent =
-                "❌ Try again.";
-        }
-    }
-
-    button.onclick =
-        check;
-
-    input.onkeydown =
-        event => {
-
-            if (
-                event.key === "Enter"
-            ) {
-                check();
-            }
-
-        };
-
-    input.focus();
-}
-
-/* =========================================================
-   AIM TRAINER
-   ========================================================= */
-
-function aimTrainer() {
-
-    let score = 0;
-    let remaining = 10;
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Aim Trainer</h2>
-
-            <p>
-                Click the targets.
-            </p>
-
-            <div
-                id="aimArea"
-                style="
-                position:relative;
-                height:350px;
-                overflow:hidden;
-                border-radius:20px;
-                background:rgba(255,255,255,.05);">
-            </div>
-
-            <div
-                id="aimStatus"
-                class="result">
-                Targets: 10
-            </div>
-
-        </div>
-
-    `;
-
-    const area =
-        document.getElementById(
-            "aimArea"
-        );
-
-    const status =
-        document.getElementById(
-            "aimStatus"
-        );
-
-    function spawn() {
-
-        area.innerHTML = "";
-
-        if (remaining <= 0) {
-
-            status.textContent =
-                `🎉 Score: ${score}/10`;
-
-            gameWon();
-
-            return;
-        }
-
-        const target =
-            document.createElement(
-                "button"
-            );
-
-        target.type =
-            "button";
-
-        target.textContent =
-            "●";
-
-        target.style.position =
-            "absolute";
-
-        target.style.width =
-            "55px";
-
-        target.style.height =
-            "55px";
-
-        target.style.borderRadius =
-            "50%";
-
-        target.style.left =
-            `${Math.random()*85}%`;
-
-        target.style.top =
-            `${Math.random()*75}%`;
-
-        target.onclick = () => {
-
-            score++;
-            remaining--;
-
-            status.textContent =
-                `Targets remaining: ${remaining}`;
-
-            spawn();
-        };
-
-        area.appendChild(
-            target
-        );
-    }
-
-    spawn();
-}
-
-/* =========================================================
-   TYPING
-   ========================================================= */
-
-function typing() {
-
-    const texts = [
-        "The quick brown fox jumps over the lazy dog.",
-        "Learning new things makes the brain stronger.",
-        "Space exploration teaches us about our universe.",
-        "Practice makes people faster and more accurate."
-    ];
-
-    const text =
-        texts[
-            Math.floor(
-                Math.random() *
-                texts.length
-            )
-        ];
-
-    const startTime =
-        performance.now();
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Typing Speed</h2>
-
-            <p>
-                ${text}
-            </p>
-
-            <textarea
-                id="typingInput"
-                class="game-input"
-                rows="5"
-                placeholder="Start typing...">
-            </textarea>
-
-            <div
-                id="typingStatus"
-                class="result">
-                Start typing.
-            </div>
-
-        </div>
-
-    `;
-
-    const input =
-        document.getElementById(
-            "typingInput"
-        );
-
-    const status =
-        document.getElementById(
-            "typingStatus"
-        );
-
-    input.focus();
-
-    input.oninput = () => {
-
-        const value =
-            input.value;
-
-        if (
-            !text.startsWith(value)
-        ) {
-
-            status.textContent =
-                "⚠️ Check your typing.";
-
-            return;
-        }
-
-        if (
-            value === text
-        ) {
-
-            const seconds =
-                (
-                    performance.now() -
-                    startTime
-                ) / 1000;
-
-            const words =
-                text.split(/\s+/).length;
-
-            const wpm =
-                Math.round(
-                    words /
-                    seconds *
-                    60
-                );
-
-            if (
-                stats.bestTyping === null ||
-                wpm > stats.bestTyping
-            ) {
-                stats.bestTyping =
-                    wpm;
-            }
-
-            saveStats();
-
-            status.textContent =
-                `🎉 Complete! ${wpm} WPM`;
-
-            gameWon();
-        }
-    };
-}
-
-/* =========================================================
-   FOCUS TEST
-   ========================================================= */
-
-function focusTest() {
-
-    let waiting = false;
-    let ready = false;
-    let start = 0;
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Focus Test</h2>
-
-            <p>
-                Click when the button says
-                CLICK NOW.
-            </p>
-
-            <button
-                id="focusButton"
-                class="game-btn">
-                Start
-            </button>
-
-            <div
-                id="focusStatus"
-                class="result">
-            </div>
-
-        </div>
-
-    `;
-
-    const button =
-        document.getElementById(
-            "focusButton"
-        );
-
-    const status =
-        document.getElementById(
-            "focusStatus"
-        );
-
-    button.onclick = () => {
-
-        if (!waiting && !ready) {
-
-            waiting = true;
-
-            button.textContent =
-                "WAIT...";
-
-            timeout(() => {
-
-                waiting = false;
-                ready = true;
-
-                start =
-                    performance.now();
-
-                button.textContent =
-                    "CLICK NOW!";
-
-                button.classList.add(
-                    "ready"
-                );
-
-            },1000 + Math.random()*2500);
-
-            return;
-        }
-
-        if (waiting) {
-
-            clearTimers();
-
-            waiting = false;
-
-            button.textContent =
-                "Start";
-
-            status.textContent =
-                "❌ Too early!";
-
-            return;
-        }
-
-        if (ready) {
-
-            const time =
-                Math.round(
-                    performance.now() -
-                    start
-                );
-
-            ready = false;
-
-            button.textContent =
-                "Start";
-
-            button.classList.remove(
-                "ready"
-            );
-
-            status.textContent =
-                `⚡ ${time} ms`;
-
-            gameWon();
-        }
-    };
-}
-
-/* =========================================================
-   QUICK MATH
-   ========================================================= */
-
-function quickMath() {
-
-    let score = 0;
-    let question = 0;
-    let answer = 0;
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Quick Math</h2>
-
-            <div
-                id="mathQuestion"
-                style="
-                font-size:40px;
-                font-weight:900;
-                margin:20px;">
-            </div>
-
-            <input
-                id="mathInput"
-                class="game-input"
-                type="number"
-                placeholder="Answer">
-
-            <button
-                id="mathCheck"
-                class="game-btn">
-                Check
-            </button>
-
-            <div
-                id="mathStatus"
-                class="result">
-                Score: 0 / 10
-            </div>
-
-        </div>
-
-    `;
-
-    const questionBox =
-        document.getElementById(
-            "mathQuestion"
-        );
-
-    const input =
-        document.getElementById(
-            "mathInput"
-        );
-
-    const check =
-        document.getElementById(
-            "mathCheck"
-        );
-
-    const status =
-        document.getElementById(
-            "mathStatus"
-        );
-
-    function next() {
-
-        if (question >= 10) {
-
-            status.textContent =
-                `🎉 Finished! ${score}/10`;
-
-            check.disabled = true;
-            input.disabled = true;
-
-            gameWon();
-
-            return;
-        }
-
-        question++;
-
-        const a =
-            Math.floor(
-                Math.random()*20
-            ) + 1;
-
-        const b =
-            Math.floor(
-                Math.random()*20
-            ) + 1;
-
-        answer =
-            a + b;
-
-        questionBox.textContent =
-            `${a} + ${b} = ?`;
-
-        input.value = "";
-
-        input.focus();
-    }
-
-    function submit() {
-
-        if (
-            Number(input.value) ===
-            answer
-        ) {
-            score++;
-        }
-
-        status.textContent =
-            `Score: ${score}/10`;
-
-        next();
-    }
-
-    check.onclick =
-        submit;
-
-    input.onkeydown =
-        event => {
-
-            if (
-                event.key === "Enter"
-            ) {
-                submit();
-            }
-
-        };
-
-    next();
-}
-
-/* =========================================================
-   ANAGRAM
-   ========================================================= */
-
-function anagram() {
-
-    const letters =
-        "PLANET";
-
-    const validWords = [
-        "PLAN",
-        "PANEL",
-        "PLANE",
-        "PLANET"
-    ];
-
-    const found =
-        new Set();
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Anagram Challenge</h2>
-
-            <p>
-                Make words from:
-            </p>
-
-            <div
-                style="
-                font-size:42px;
-                font-weight:900;
-                letter-spacing:8px;
-                margin:20px;">
-                ${letters}
-            </div>
-
-            <input
-                id="anagramInput"
-                class="game-input"
-                placeholder="Enter a word">
-
-            <button
-                id="anagramAdd"
-                class="game-btn">
-                Add Word
-            </button>
-
-            <div
-                id="anagramStatus"
-                class="result">
-                Words found: 0
-            </div>
-
-        </div>
-
-    `;
-
-    const input =
-        document.getElementById(
-            "anagramInput"
-        );
-
-    const button =
-        document.getElementById(
-            "anagramAdd"
-        );
-
-    const status =
-        document.getElementById(
-            "anagramStatus"
-        );
-
-    function possible(word) {
-
-        const chars =
-            letters
-                .toLowerCase()
-                .split("");
-
-        for (
-            const char of word
-                .toLowerCase()
-        ) {
-
-            const index =
-                chars.indexOf(char);
-
-            if (index === -1) {
-                return false;
-            }
-
-            chars.splice(
-                index,
-                1
-            );
-        }
-
-        return true;
-    }
-
-    function addWord() {
-
-        const word =
-            input.value
-                .trim()
-                .toLowerCase();
-
-        if (
-            word.length < 2 ||
-            !possible(word)
-        ) {
-
-            status.textContent =
-                "❌ That word cannot be made.";
-
-            return;
-        }
-
-        if (
-            found.has(word)
-        ) {
-
-            status.textContent =
-                "⚠️ Already found.";
-
-            return;
-        }
-
-        found.add(word);
-
-        status.textContent =
-            `Words found: ${[
-                ...found
-            ].join(", ")}`;
-
-        if (
-            validWords.every(
-                x =>
-                    found.has(
-                        x.toLowerCase()
-                    )
-            )
-        ) {
-
-            gameWon();
-        }
-
-        input.value = "";
-        input.focus();
-    }
-
-    button.onclick =
-        addWord;
-
-    input.onkeydown =
-        event => {
-
-            if (
-                event.key === "Enter"
-            ) {
-                addWord();
-            }
-
-        };
-}
-
-/* =========================================================
-   WORD SEARCH
-   ========================================================= */
-
-function wordSearch() {
-
-    const words = [
-        "BRAIN",
-        "MIND",
-        "FOCUS",
-        "LOGIC",
-        "PUZZLE"
-    ];
-
-    const size = 10;
-
-    let grid = [];
-
-    gameArea.innerHTML = `
-
-        <div class="game-intro">
-
-            <h2>Word Search</h2>
-
-            <p>
-                Find the hidden words.
-            </p>
-
-            <div
-                id="wordSearchGrid"
-                class="word-search-grid">
-            </div>
-
-            <div
-                id="wordSearchWords"
-                class="result">
-                ${words.join(" • ")}
-            </div>
-
-            <button
-                id="wordSearchNew"
-                class="game-btn">
-                New Puzzle
-            </button>
-
-        </div>
-
-    `;
-
-    const gridBox =
-        document.getElementById(
-            "wordSearchGrid"
-        );
-
-    const wordBox =
-        document.getElementById(
-            "wordSearchWords"
-        );
-
-    function generate() {
-
-        grid =
-            Array.from(
-                {length:size},
-                () =>
-                    Array(size).fill("")
-            );
-
-        words.forEach(word => {
-
-            let placed = false;
-
-            for (
-                let attempt = 0;
-                attempt < 500 &&
-                !placed;
-                attempt++
-            ) {
-
-                const row =
-                    Math.floor(
-                        Math.random()*size
-                    );
-
-                const col =
-                    Math.floor(
-                        Math.random()*size
-                    );
-
-                const directions = [
-                    [0,1],
-                    [1,0],
-                    [1,1],
-                    [-1,1]
-                ];
-
-                const direction =
-                    directions[
-                        Math.floor(
-                            Math.random() *
-                            directions.length
-                        )
-                    ];
-
-                const dr =
-                    direction[0];
-
-                const dc =
-                    direction[1];
-
-                let possible =
-                    true;
-
-                for (
-                    let i=0;
-                    i<word.length;
-                    i++
-                ) {
-
-                    const r =
-                        row + dr*i;
-
-                    const c =
-                        col + dc*i;
-
-                    if (
-                        r<0 ||
-                        r>=size ||
-                        c<0 ||
-                        c>=size
-                    ) {
-
-                        possible = false;
-                        break;
-                    }
-
-                    if (
-                        grid[r][c] &&
-                        grid[r][c] !==
-                        word[i]
-                    ) {
-
-                        possible = false;
-                        break;
-                    }
-                }
-
-                if (!possible) {
-                    continue;
-                }
-
-                for (
-                    let i=0;
-                    i<word.length;
-                    i++
-                ) {
-
-                    grid[
-                        row+dr*i
-                    ][
-                        col+dc*i
-                    ] =
-                        word[i];
-                }
-
-                placed = true;
-            }
+            box.appendChild(b);
         });
 
-        const alphabet =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-        for (
-            let r=0;
-            r<size;
-            r++
-        ) {
-
-            for (
-                let c=0;
-                c<size;
-                c++
-            ) {
-
-                if (!grid[r][c]) {
-
-                    grid[r][c] =
-                        alphabet[
-                            Math.floor(
-                                Math.random() *
-                                alphabet.length
-                            )
-                        ];
-                }
-            }
-        }
+        document.getElementById("lightMoves")
+            .textContent=`Moves: ${moves}`;
     }
 
-    function render() {
-
-        gridBox.innerHTML = "";
-
-        grid.forEach(
-            row => {
-
-                row.forEach(
-                    letter => {
-
-                        const cell =
-                            document.createElement(
-                                "button"
-                            );
-
-                        cell.type =
-                            "button";
-
-                        cell.className =
-                            "word-search-cell";
-
-                        cell.textContent =
-                            letter;
-
-                        cell.onclick = () => {
-
-                            cell.classList.toggle(
-                                "selected"
-                            );
-                        };
-
-                        gridBox.appendChild(
-                            cell
-                        );
-                    }
-                );
-            }
-        );
-    }
-
-    document
-        .getElementById(
-            "wordSearchNew"
-        )
-        .onclick = () => {
-
-            generate();
-            render();
-
-            wordBox.textContent =
-                words.join(" • ");
-        };
-
-    generate();
-    render();
+    draw();
 }
 
-/* =========================================================
-   CHOICE REACTION
-   ========================================================= */
 
-function choiceReaction() {
+/* STROOP */
 
-    let active = false;
-    let start = 0;
-    let expected = "";
+function stroop(){
 
-    const keys = [
-        "A",
-        "S",
-        "D",
-        "F"
+    openGame(
+        "🎨 Stroop Focus",
+        "Click the COLOR of the text, not the word."
+    );
+
+    const colors=[
+        ["RED","#ef4444"],
+        ["BLUE","#3b82f6"],
+        ["GREEN","#22c55e"],
+        ["YELLOW","#facc15"],
+        ["PURPLE","#a855f7"],
+        ["ORANGE","#f97316"]
     ];
 
-    gameArea.innerHTML = `
+    let score=0;
+    let total=0;
 
-        <div class="game-intro">
+    function round(){
 
-            <h2>Choice Reaction</h2>
+        let word=colors[rand(0,5)];
+        let ink=colors[rand(0,5)];
 
-            <p>
-                When a letter appears,
-                press the matching key.
-            </p>
-
+        game.innerHTML+=`
             <div
-                style="
-                font-size:60px;
-                font-weight:900;
-                margin:25px;"
-                id="choiceSignal">
-                ?
+                class="colorword"
+                style="color:${ink[1]}"
+            >
+                ${word[0]}
             </div>
 
-            <button
-                id="choiceStart"
-                class="game-btn">
-                Start
-            </button>
+            <div class="choicegrid" id="choices"></div>
+        `;
 
-            <div
-                id="choiceStatus"
-                class="result">
-            </div>
+        const ch=document.getElementById("choices");
 
+        colors.forEach(c=>{
+
+            let b=document.createElement("button");
+
+            b.className="choice";
+            b.textContent=c[0];
+
+            b.onclick=()=>{
+
+                total++;
+
+                if(c[1]===ink[1])
+                    score++;
+
+                if(total>=15){
+
+                    addPlayed();
+
+                    result(`
+                        <strong>${score}/15</strong>
+                        Accuracy: ${Math.round(score/15*100)}%
+                    `);
+
+                }else{
+
+                    game.innerHTML=`
+                        <h2>🎨 Stroop Focus</h2>
+                        <div class="instructions">
+                            Round ${total+1} of 15
+                        </div>
+                    `;
+
+                    round();
+                }
+            };
+
+            ch.appendChild(b);
+        });
+    }
+
+    round();
+}
+
+
+/* PATTERN */
+
+function pattern(){
+
+    openGame(
+        "🔺 Pattern Challenge",
+        "Find the missing number."
+    );
+
+    let a=rand(2,9);
+    let step=rand(2,7);
+
+    let arr=[
+        a,
+        a+step,
+        a+step*2,
+        a+step*3
+    ];
+
+    let answer=a+step*4;
+
+    let opts=[
+        answer,
+        answer+step,
+        answer-1,
+        answer+rand(8,15)
+    ].sort(()=>Math.random()-.5);
+
+    game.innerHTML+=`
+        <div class="bigtext">
+            ${arr.join(" , ")} , ?
         </div>
 
+        <div class="choicegrid" id="pc"></div>
     `;
 
-    const signal =
-        document.getElementById(
-            "choiceSignal"
+    opts.forEach(x=>{
+
+        let b=document.createElement("button");
+
+        b.className="choice";
+        b.textContent=x;
+
+        b.onclick=()=>{
+
+            addPlayed();
+
+            result(
+                x===answer
+                ?
+                `<strong>Correct!</strong>The answer is ${answer}.`
+                :
+                `<strong>Incorrect</strong>The answer was ${answer}.`
+            );
+        };
+
+        document.getElementById("pc")
+            .appendChild(b);
+    });
+}
+
+
+/* ODD ONE */
+
+function oddOne(){
+
+    openGame(
+        "👀 Odd One Out",
+        "Find the different symbol as quickly as possible."
+    );
+
+    let symbols=[
+        "◆","◆","◆","◆",
+        "◇",
+        "◆","◆","◆","◆"
+    ];
+
+    symbols.sort(()=>Math.random()-.5);
+
+    game.innerHTML+=`
+        <div class="wordgrid" id="odd"></div>
+    `;
+
+    let target=symbols.indexOf("◇");
+
+    symbols.forEach((s,i)=>{
+
+        let b=document.createElement("button");
+
+        b.className="wordcell";
+        b.textContent=s;
+
+        b.onclick=()=>{
+
+            addPlayed();
+
+            result(
+                i===target
+                ?
+                `<strong>Correct!</strong>Great observation.`
+                :
+                `<strong>Wrong!</strong>Look carefully next time.`
+            );
+        };
+
+        document.getElementById("odd")
+            .appendChild(b);
+    });
+}
+
+
+/* SCRAMBLE */
+
+function scramble(){
+
+    openGame(
+        "🔀 Word Scramble",
+        "Unscramble the letters."
+    );
+
+    const words=[
+        "PLANET",
+        "GALAXY",
+        "ROCKET",
+        "MEMORY",
+        "PUZZLE",
+        "COMPUTER",
+        "OCEAN",
+        "SCIENCE",
+        "ASTRONAUT",
+        "MYSTERY"
+    ];
+
+    let answer=words[rand(0,words.length-1)];
+
+    let shuffled=answer
+        .split("")
+        .sort(()=>Math.random()-.5)
+        .join("");
+
+    game.innerHTML+=`
+        <div class="bigtext">${shuffled}</div>
+
+        <input
+            class="control"
+            id="scrInput"
+            placeholder="Your answer"
+        >
+
+        <button
+            class="primary control"
+            id="scrCheck"
+        >
+            CHECK
+        </button>
+    `;
+
+    document.getElementById("scrCheck").onclick=()=>{
+
+        let x=document
+            .getElementById("scrInput")
+            .value
+            .toUpperCase()
+            .trim();
+
+        addPlayed();
+
+        result(
+            x===answer
+            ?
+            `<strong>Correct!</strong>${answer}`
+            :
+            `<strong>Answer: ${answer}</strong>`
         );
+    };
+}
 
-    const startButton =
-        document.getElementById(
-            "choiceStart"
-        );
 
-    const status =
-        document.getElementById(
-            "choiceStatus"
-        );
+/* ANAGRAM */
 
-    function keyHandler(event) {
+function anagram(){
+    scramble();
+}
 
-        if (!active) {
-            return;
+
+/* AIM */
+
+function aim(){
+
+    openGame(
+        "🎯 Aim Trainer",
+        "Hit 10 targets. Your time and accuracy will be measured."
+    );
+
+    game.innerHTML=`
+        <div class="targetarea" id="targetarea"></div>
+
+        <p id="aimInfo" class="instructions">
+            Targets: 0 / 10
+        </p>
+    `;
+
+    let area=document.getElementById("targetarea");
+
+    let count=0;
+    let start=performance.now();
+
+    function target(){
+
+        let b=document.createElement("button");
+
+        b.className="target";
+
+        b.style.left=rand(5,90)+"%";
+        b.style.top=rand(5,85)+"%";
+
+        b.onclick=()=>{
+
+            b.remove();
+
+            count++;
+
+            document.getElementById("aimInfo")
+                .textContent=`Targets: ${count} / 10`;
+
+            if(count>=10){
+
+                let time=(
+                    (performance.now()-start)/1000
+                ).toFixed(2);
+
+                addPlayed();
+
+                result(`
+                    <strong>${time}s</strong>
+                    10 targets completed
+                `);
+
+            }else{
+
+                target();
+            }
+        };
+
+        area.appendChild(b);
+    }
+
+    target();
+}
+
+
+/* TYPING */
+
+function typing(){
+
+    openGame(
+        "⌨️ Typing Speed",
+        "Type the passage as accurately and quickly as possible."
+    );
+
+    const text=
+        "The universe is full of stars planets galaxies and mysterious worlds waiting to be explored.";
+
+    game.innerHTML+=`
+        <div class="typetext">
+            ${text}
+        </div>
+
+        <input
+            class="control typinginput"
+            id="typingInput"
+            placeholder="Start typing here..."
+            autofocus
+        >
+
+        <p id="typingInfo" class="instructions">
+            Timer starts with your first key.
+        </p>
+    `;
+
+    let input=document.getElementById("typingInput");
+
+    let started=false;
+    let start;
+
+    input.oninput=()=>{
+
+        if(!started){
+
+            started=true;
+            start=performance.now();
         }
 
-        const key =
-            event.key.toUpperCase();
+        if(input.value.length>=text.length){
 
-        if (!keys.includes(key)) {
-            return;
-        }
+            let seconds=
+                (performance.now()-start)/1000;
 
-        active = false;
+            let correct=0;
 
-        const time =
-            Math.round(
-                performance.now() -
-                start
+            for(let i=0;i<text.length;i++)
+                if(input.value[i]===text[i])
+                    correct++;
+
+            let wpm=Math.round(
+                (correct/5)/(seconds/60)
             );
 
-        if (
-            key === expected
-        ) {
+            let old=Number(
+                localStorage.getItem("typingBest")||0
+            );
 
-            status.textContent =
-                `🎉 ${time} ms`;
+            if(wpm>old){
 
-            if (
-                stats.bestReaction === null ||
-                time < stats.bestReaction
-            ) {
+                localStorage.setItem(
+                    "typingBest",
+                    wpm
+                );
 
-                stats.bestReaction =
-                    time;
+                document.getElementById("bestTyping")
+                    .textContent=wpm;
             }
 
-            gameWon();
+            addPlayed();
 
-        } else {
-
-            status.textContent =
-                `❌ Wrong key. Expected ${expected}.`;
+            result(`
+                <strong>${wpm} WPM</strong>
+                Accuracy: ${Math.round(correct/text.length*100)}%
+            `);
         }
+    };
+}
 
-        startButton.disabled =
-            false;
 
-        startButton.textContent =
-            "Try Again";
+/* FOCUS */
+
+function focusTest(){
+
+    openGame(
+        "🎯 Focus Test",
+        "Find the unique ★ among the other symbols."
+    );
+
+    let arr=Array(24).fill("◆");
+
+    let target=rand(0,23);
+
+    arr[target]="★";
+
+    game.innerHTML+=`
+        <div class="wordgrid" id="focusGrid"></div>
+    `;
+
+    arr.forEach((x,i)=>{
+
+        let b=document.createElement("button");
+
+        b.className="wordcell";
+        b.textContent=x;
+
+        b.onclick=()=>{
+
+            addPlayed();
+
+            result(
+                i===target
+                ?
+                `<strong>Excellent!</strong>You found it.`
+                :
+                `<strong>Missed!</strong>Try again.`
+            );
+        };
+
+        document.getElementById("focusGrid")
+            .appendChild(b);
+    });
+}
+
+
+/* QUICK MATH */
+
+function mathGame(){
+
+    openGame(
+        "🧮 Quick Math",
+        "Solve 10 calculations as quickly as possible."
+    );
+
+    let score=0;
+    let start=performance.now();
+
+    function next(){
+
+        let a=rand(2,20);
+        let b=rand(2,20);
+        let op=rand(0,1);
+
+        let ans=op?a*b:a+b;
+
+        game.innerHTML+=`
+            <div class="bigtext">
+                ${a} ${op?"×":"+"} ${b} = ?
+            </div>
+
+            <input
+                class="control"
+                id="mathInput"
+                type="number"
+                autofocus
+            >
+
+            <button
+                class="primary control"
+                id="mathCheck"
+            >
+                CHECK
+            </button>
+
+            <p class="instructions">
+                Score: ${score}/10
+            </p>
+        `;
+
+        document.getElementById("mathCheck")
+            .onclick=()=>{
+
+                if(
+                    Number(
+                        document.getElementById("mathInput").value
+                    )===ans
+                )
+                    score++;
+
+                if(score>=10){
+
+                    let sec=(
+                        (performance.now()-start)/1000
+                    ).toFixed(2);
+
+                    addPlayed();
+
+                    result(`
+                        <strong>10/10</strong>
+                        Completed in ${sec} seconds
+                    `);
+
+                }else{
+
+                    game.innerHTML=`
+                        <h2>🧮 Quick Math</h2>
+                    `;
+
+                    next();
+                }
+            };
+    }
+
+    next();
+}
+
+
+/* WORD SEARCH */
+
+function wordSearch(){
+
+    openGame(
+        "🔎 Word Search",
+        "Find the hidden word. Click letters in order."
+    );
+
+    const words=[
+        "STAR",
+        "MOON",
+        "MARS",
+        "SUN"
+    ];
+
+    let answer=
+        words[rand(0,words.length-1)];
+
+    let letters=[];
+
+    for(let i=0;i<16;i++)
+        letters.push(
+            String.fromCharCode(
+                65+rand(0,25)
+            )
+        );
+
+    let start=rand(
+        0,
+        16-answer.length
+    );
+
+    for(let i=0;i<answer.length;i++)
+        letters[start+i]=answer[i];
+
+    game.innerHTML+=`
+        <p class="instructions">
+            Find: <strong>${answer}</strong>
+        </p>
+
+        <div class="wordgrid" id="searchGrid"></div>
+    `;
+
+    let selected="";
+
+    letters.forEach((l,i)=>{
+
+        let b=document.createElement("button");
+
+        b.className="wordcell";
+        b.textContent=l;
+
+        b.onclick=()=>{
+
+            selected+=l;
+
+            b.classList.add("selected");
+
+            if(selected.length===answer.length){
+
+                addPlayed();
+
+                result(`
+                    <strong>
+                        ${selected===answer?"🎉 Correct!":"❌ Wrong!"}
+                    </strong>
+                `);
+            }
+        };
+
+        document.getElementById("searchGrid")
+            .appendChild(b);
+    });
+}
+
+
+/* CHOICE REACTION */
+
+function choiceReaction(){
+
+    openGame(
+        "🎯 Choice Reaction",
+        "Press the matching key: A, S, D or F."
+    );
+
+    game.innerHTML=`
+        <div class="bigtext" id="choiceSignal">
+            READY
+        </div>
+
+        <button
+            class="primary control"
+            id="choiceStart"
+        >
+            START
+        </button>
+    `;
+
+    let key;
+    let started=false;
+    let start;
+
+    document.getElementById("choiceStart")
+        .onclick=()=>{
+
+            key=[
+                "A",
+                "S",
+                "D",
+                "F"
+            ][rand(0,3)];
+
+            document.getElementById("choiceSignal")
+                .textContent=key;
+
+            started=true;
+
+            start=performance.now();
+        };
+
+    function handler(e){
+
+        if(!started)return;
+
+        if(
+            ["A","S","D","F"]
+            .includes(e.key.toUpperCase())
+        ){
+
+            let ms=Math.round(
+                performance.now()-start
+            );
+
+            started=false;
+
+            document.removeEventListener(
+                "keydown",
+                handler
+            );
+
+            addPlayed();
+
+            result(`
+                <strong>${ms} ms</strong>
+                You pressed ${e.key.toUpperCase()}.
+            `);
+        }
     }
 
     document.addEventListener(
         "keydown",
-        keyHandler
+        handler
     );
-
-    cleanupFunction = () => {
-
-        document.removeEventListener(
-            "keydown",
-            keyHandler
-        );
-
-        active = false;
-    };
-
-    startButton.onclick = () => {
-
-        clearTimers();
-
-        active = false;
-
-        startButton.disabled =
-            true;
-
-        signal.textContent =
-            "WAIT";
-
-        timeout(() => {
-
-            expected =
-                keys[
-                    Math.floor(
-                        Math.random() *
-                        keys.length
-                    )
-                ];
-
-            signal.textContent =
-                expected;
-
-            start =
-                performance.now();
-
-            active = true;
-
-        },1000 + Math.random()*2500);
-    };
 }
 
-/* =========================================================
-   START
-   ========================================================= */
 
-loadStats();
+/* ESCAPE */
 
-console.log(
-    "Ultimate Brain Lab loaded successfully."
-);
+document.addEventListener("keydown",e=>{
 
+    if(e.key==="Escape")
+        closeGame();
 });
