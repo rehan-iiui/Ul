@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ultimate Brain Lab</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header>
+    <div class="logo">
+        <div class="logo-icon">🧠</div>
+        <div>
+            <h1>Ultimate Brain Lab</h1>
+            <p>Memory • Logic • Speed • Focus</p>
+        </div>
+    </div>
+    <button class="header-btn" onclick="quickTest()">⚡ Quick Test</button>
+</header>
+
+<section class="hero">
+    <span class="badge">ULTIMATE COGNITIVE ARCADE</span>
+    <h2>Challenge Your Mind.</h2>
+    <p>
+        Test memory, reaction speed, attention, language,
+        logic, patterns, accuracy and problem solving.
+        Everything runs directly in this browser.
+    </p>
+    <div class="actions">
+        <button class="primary" onclick="quickTest()">▶ Start Quick Test</button>
+        <button class="secondary" onclick="document.getElementById('games').scrollIntoView()">Explore Games</button>
+    </div>
+</section>
+
+<main class="container">
+
+<section class="stats">
+    <div class="stat"><span>⚡ Best Reaction</span><strong id="bestReaction">—</strong><small>milliseconds</small></div>
+    <div class="stat"><span>🧠 Memory Level</span><strong id="bestMemory">0</strong><small>best level</small></div>
+    <div class="stat"><span>⌨️ Best Typing</span><strong id="bestTyping">0</strong><small>WPM</small></div>
+    <div class="stat"><span>🏆 Games Played</span><strong id="played">0</strong><small>on this device</small></div>
+</section>
+
+<div class="heading" id="games">
+    <span class="badge">GAME LIBRARY</span>
+    <h2>Choose Your Challenge</h2>
+    <p>Every game is playable from this one page.</p>
+</div>
+
+<section class="games">
+
+<div class="card">
+<div class="icon">⚡</div><h3>Reaction Time</h3>
+<p>Wait for GO and react as quickly as possible.</p>
+<button class="play" onclick="reaction()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🃏</div><h3>Memory Match</h3>
+<p>Find every matching pair using the fewest moves.</p>
+<button class="play" onclick="memory()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔵</div><h3>Sequence Memory</h3>
+<p>Remember an increasingly long sequence of tiles.</p>
+<button class="play" onclick="sequence()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔢</div><h3>Number Memory</h3>
+<p>Memorize longer and longer numbers.</p>
+<button class="play" onclick="numberMemory()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔢</div><h3>Classic Sudoku</h3>
+<p>Complete a playable 9×9 Sudoku puzzle.</p>
+<button class="play" onclick="sudoku()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔤</div><h3>Word Sudoku</h3>
+<p>Sudoku using letters instead of numbers.</p>
+<button class="play" onclick="wordSudoku()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🧩</div><h3>15 Puzzle</h3>
+<p>Arrange the tiles into the correct order.</p>
+<button class="play" onclick="fifteen()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">💡</div><h3>Lights Out</h3>
+<p>Turn every light off using the fewest moves.</p>
+<button class="play" onclick="lightsOut()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🎨</div><h3>Stroop Focus</h3>
+<p>Choose the ink color instead of reading the word.</p>
+<button class="play" onclick="stroop()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔺</div><h3>Pattern Challenge</h3>
+<p>Discover the rule behind a sequence.</p>
+<button class="play" onclick="pattern()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">👀</div><h3>Odd One Out</h3>
+<p>Find the different symbol as quickly as possible.</p>
+<button class="play" onclick="oddOne()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔀</div><h3>Word Scramble</h3>
+<p>Unscramble the letters to discover the word.</p>
+<button class="play" onclick="scramble()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🎯</div><h3>Aim Trainer</h3>
+<p>Hit targets and measure your accuracy and speed.</p>
+<button class="play" onclick="aim()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">⌨️</div><h3>Typing Speed</h3>
+<p>Type accurately and discover your WPM.</p>
+<button class="play" onclick="typing()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🎯</div><h3>Focus Test</h3>
+<p>Find the target symbol hidden among distractions.</p>
+<button class="play" onclick="focusTest()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🧮</div><h3>Quick Math</h3>
+<p>Solve as many calculations as possible.</p>
+<button class="play" onclick="mathGame()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔤</div><h3>Anagram</h3>
+<p>Rearrange letters to form the correct word.</p>
+<button class="play" onclick="anagram()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🔎</div><h3>Word Search</h3>
+<p>Find hidden words inside the letter grid.</p>
+<button class="play" onclick="wordSearch()">Play</button>
+</div>
+
+<div class="card">
+<div class="icon">🎯</div><h3>Choice Reaction</h3>
+<p>React to the correct keyboard signal.</p>
+<button class="play" onclick="choiceReaction()">Play</button>
+</div>
+
+</section>
+</main>
+
+<div class="modal" id="modal">
+<div class="modalbox">
+<button class="close" onclick="closeGame()">×</button>
+<div id="game"></div>
+</div>
+</div>
+
+<footer>
+    <h3>🧠 Ultimate Brain Lab</h3>
+    <p>Challenge yourself. Beat your personal best.</p>
+    <br>
+    <small>Scores are saved locally in your browser.</small>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
